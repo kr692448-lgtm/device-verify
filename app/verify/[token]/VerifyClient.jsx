@@ -113,10 +113,24 @@ export default function VerifyClient({ token, session }) {
   const [subText, setSubText] = useState("Preparing secure environment");
   const [fingerprint, setFingerprint] = useState("");
   const [logs, setLogs] = useState([]);
+  const [dark, setDark] = useState(true);
   const hasRun = useRef(false);
 
   const addLog = (text) => setLogs(prev => [...prev.slice(-3), text]);
   const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+  const bg = dark ? "#080810" : "#f0f2f8";
+  const cardBg = dark ? "rgba(10,10,20,0.92)" : "rgba(255,255,255,0.95)";
+  const textMuted = dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.4)";
+  const textFaint = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.2)";
+  const logBg = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.04)";
+  const logBorder = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.08)";
+  const logText = dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)";
+  const logTextActive = dark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.6)";
+  const dividerColor = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.08)";
+  const topBarBg = dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)";
+  const bottomBarBg = dark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.03)";
+  const gridColor = dark ? "rgba(108,99,255,0.04)" : "rgba(108,99,255,0.06)";
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -209,7 +223,7 @@ export default function VerifyClient({ token, session }) {
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%;background:#080810}
+        html,body{height:100%;background:${bg};transition:background 0.3s}
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
@@ -217,20 +231,30 @@ export default function VerifyClient({ token, session }) {
         @keyframes gridMove{from{transform:translateY(0)}to{transform:translateY(40px)}}
       `}</style>
 
-      <div style={{ position:"fixed", inset:0, zIndex:0, backgroundImage:`linear-gradient(rgba(108,99,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(108,99,255,0.04) 1px,transparent 1px)`, backgroundSize:"40px 40px", animation:"gridMove 4s linear infinite" }} />
+      <div style={{ position:"fixed", inset:0, zIndex:0, backgroundImage:`linear-gradient(${gridColor} 1px,transparent 1px),linear-gradient(90deg,${gridColor} 1px,transparent 1px)`, backgroundSize:"40px 40px", animation:"gridMove 4s linear infinite" }} />
       <div style={{ position:"fixed", inset:0, zIndex:0, background:`radial-gradient(ellipse 60% 50% at 50% 50%,rgba(108,99,255,0.08) 0%,transparent 70%)` }} />
 
+      {/* Theme Toggle */}
+      <div style={{ position:"fixed", top:16, right:16, zIndex:10 }}>
+        <button
+          onClick={() => setDark(d => !d)}
+          style={{ background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", border: `1px solid ${dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`, borderRadius:20, padding:"6px 14px", cursor:"pointer", color: dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", fontSize:11, letterSpacing:1, fontFamily:"monospace", transition:"all 0.3s" }}
+        >
+          {dark ? "☀ LIGHT" : "☾ DARK"}
+        </button>
+      </div>
+
       <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"'SF Mono','Fira Code','Consolas',monospace" }}>
-        <div style={{ width:"100%", maxWidth:360, background:"rgba(10,10,20,0.92)", border:`1px solid ${accentColor}22`, borderRadius:4, overflow:"hidden", boxShadow:`0 0 0 1px rgba(255,255,255,0.03),0 40px 80px rgba(0,0,0,0.6),0 0 60px ${accentColor}0d`, animation:"fadeUp 0.4s ease", transition:"box-shadow 0.5s,border-color 0.5s" }}>
+        <div style={{ width:"100%", maxWidth:360, background:cardBg, border:`1px solid ${accentColor}22`, borderRadius:4, overflow:"hidden", boxShadow:`0 0 0 1px rgba(255,255,255,0.03),0 40px 80px rgba(0,0,0,0.6),0 0 60px ${accentColor}0d`, animation:"fadeUp 0.4s ease", transition:"box-shadow 0.5s,border-color 0.5s,background 0.3s" }}>
 
           {/* Top bar */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"rgba(255,255,255,0.02)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:`1px solid ${dividerColor}`, background:topBarBg }}>
             <div style={{ display:"flex", gap:6 }}>
               {["#ff5f57","#ffbd2e","#28ca41"].map((c,i) => (
                 <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:c, opacity:0.6 }} />
               ))}
             </div>
-            <span style={{ color:"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:2 }}>NXTZEN · SECURITY CORE v2</span>
+            <span style={{ color:textMuted, fontSize:9, letterSpacing:2 }}>NXTZEN · SECURITY CORE v2</span>
             <div style={{ width:6, height:6, borderRadius:"50%", background:accentColor, boxShadow:`0 0 6px ${accentColor}`, animation:"pulse 2s infinite", transition:"background 0.5s,box-shadow 0.5s" }} />
           </div>
 
@@ -243,22 +267,22 @@ export default function VerifyClient({ token, session }) {
                 {statusText}
                 {state === "scanning" && <span style={{ animation:"blink 1s infinite" }}>_</span>}
               </div>
-              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:10, letterSpacing:1, lineHeight:1.5 }}>{subText}</div>
+              <div style={{ color:textMuted, fontSize:10, letterSpacing:1, lineHeight:1.5 }}>{subText}</div>
             </div>
 
             <div style={{ marginBottom:20 }}>
               <ProgressBar progress={progress} color={accentColor} />
               <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
-                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:9, letterSpacing:1 }}>PROGRESS</span>
+                <span style={{ color:textFaint, fontSize:9, letterSpacing:1 }}>PROGRESS</span>
                 <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.7 }}>{progress}%</span>
               </div>
             </div>
 
-            <div style={{ background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.04)", borderRadius:2, padding:"10px 12px", minHeight:72, marginBottom:20 }}>
+            <div style={{ background:logBg, border:`1px solid ${logBorder}`, borderRadius:2, padding:"10px 12px", minHeight:72, marginBottom:20 }}>
               {logs.length === 0 ? (
-                <div style={{ color:"rgba(255,255,255,0.1)", fontSize:9, letterSpacing:1 }}>&gt; AWAITING SCAN...</div>
+                <div style={{ color:textFaint, fontSize:9, letterSpacing:1 }}>&gt; AWAITING SCAN...</div>
               ) : logs.map((log,i) => (
-                <div key={i} style={{ color:i===logs.length-1?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:0.5, lineHeight:1.8 }}>
+                <div key={i} style={{ color:i===logs.length-1?logTextActive:logText, fontSize:9, letterSpacing:0.5, lineHeight:1.8 }}>
                   <span style={{ color:accentColor, opacity:0.6 }}>&gt; </span>{log}
                 </div>
               ))}
@@ -266,7 +290,7 @@ export default function VerifyClient({ token, session }) {
 
             {shortFp && (
               <div style={{ background:`${accentColor}0a`, border:`1px solid ${accentColor}22`, borderRadius:2, padding:"8px 12px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ color:"rgba(255,255,255,0.2)", fontSize:8, letterSpacing:2 }}>DEVICE ID</span>
+                <span style={{ color:textMuted, fontSize:8, letterSpacing:2 }}>DEVICE ID</span>
                 <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.8 }}>{shortFp}</span>
               </div>
             )}
@@ -274,28 +298,28 @@ export default function VerifyClient({ token, session }) {
             {state === "conflict" && (
               <div style={{ background:"rgba(255,68,68,0.06)", border:"1px solid rgba(255,68,68,0.2)", borderRadius:2, padding:"12px 14px", marginBottom:16 }}>
                 <div style={{ color:"#ff4444", fontSize:10, letterSpacing:2, marginBottom:6, fontWeight:700 }}>CONFLICT DETECTED</div>
-                <div style={{ color:"rgba(255,255,255,0.35)", fontSize:9, lineHeight:1.7 }}>
+                <div style={{ color:textMuted, fontSize:9, lineHeight:1.7 }}>
                   This device fingerprint is already bound to a different account. Each physical device may only be associated with one account.
                 </div>
                 <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,68,68,0.1)", display:"flex", justifyContent:"space-between" }}>
-                  <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:1 }}>REASON</span>
+                  <span style={{ color:textFaint, fontSize:8, letterSpacing:1 }}>REASON</span>
                   <span style={{ color:"#ff4444", fontSize:8, letterSpacing:1, opacity:0.7 }}>DEVICE_ALREADY_REGISTERED</span>
                 </div>
               </div>
             )}
 
             {session?.user_id && (
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
-                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:2 }}>UID</span>
-                <span style={{ color:"rgba(255,255,255,0.25)", fontSize:9 }}>#{session.user_id}</span>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:12, borderTop:`1px solid ${dividerColor}` }}>
+                <span style={{ color:textFaint, fontSize:8, letterSpacing:2 }}>UID</span>
+                <span style={{ color:textMuted, fontSize:9 }}>#{session.user_id}</span>
               </div>
             )}
           </div>
 
           {/* Bottom bar */}
-          <div style={{ padding:"8px 16px", borderTop:"1px solid rgba(255,255,255,0.03)", background:"rgba(0,0,0,0.2)", display:"flex", justifyContent:"space-between" }}>
-            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>SHA-256 · AES-256 · TLS 1.3</span>
-            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>NXTZEN ENGINE</span>
+          <div style={{ padding:"8px 16px", borderTop:`1px solid ${dividerColor}`, background:bottomBarBg, display:"flex", justifyContent:"space-between" }}>
+            <span style={{ color:textFaint, fontSize:8, letterSpacing:1 }}>SHA-256 · AES-256 · TLS 1.3</span>
+            <span style={{ color:textFaint, fontSize:8, letterSpacing:1 }}>NXTZEN ENGINE</span>
           </div>
 
         </div>
