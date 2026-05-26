@@ -62,10 +62,10 @@ export async function POST(request) {
         }
       );
 
-      // ── Webhook hit karo conflict pe bhi ──
-      if (session.webhook_url) {
+      // conflict webhook hit karo
+      if (session.webhook_conflict_url) {
         try {
-          await fetch(session.webhook_url, { method: "GET" });
+          await fetch(session.webhook_conflict_url, { method: "GET" });
         } catch (err) {
           console.error("Conflict webhook failed:", err);
         }
@@ -73,7 +73,7 @@ export async function POST(request) {
 
       return NextResponse.json(
         {
-          error: "This device is already registered with a different account. Multi-account usage is not allowed.",
+          error: "This device is already registered with a different account.",
           code: "DEVICE_CONFLICT",
         },
         { status: 409 }
@@ -110,31 +110,12 @@ export async function POST(request) {
       }
     );
 
-    // ── Success webhook ──
+    // success webhook hit karo
     if (session.webhook_url) {
       try {
         await fetch(session.webhook_url, { method: "GET" });
       } catch (err) {
         console.error("Webhook notify failed:", err);
-      }
-    } else if (session.bot_token) {
-      try {
-        await fetch(`https://api.telegram.org/bot${session.bot_token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: session.user_id,
-            text:
-              "✅ *DEVICE VERIFIED!*\n" +
-              "━━━━━━━━━━━━━━━━━━━━\n\n" +
-              "🎉 Your device has been successfully verified!\n" +
-              "You can now use the bot.\n\n" +
-              "━━━━━━━━━━━━━━━━━━━━",
-            parse_mode: "Markdown",
-          }),
-        });
-      } catch (err) {
-        console.error("Bot notify failed:", err);
       }
     }
 
