@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function StartPage({ searchParams }) {
   const user_id = searchParams?.user_id;
   const bot = searchParams?.bot;
+  const bot_token = searchParams?.bot_token;
 
   if (!user_id || !bot) {
     redirect("/");
@@ -15,7 +16,6 @@ export default async function StartPage({ searchParams }) {
   const db = await getDb();
   const sessions = db.collection("sessions");
 
-  // Expire old pending
   await sessions.updateMany(
     { user_id: String(user_id), bot_username: String(bot), status: "pending" },
     { $set: { status: "expired" } }
@@ -27,6 +27,7 @@ export default async function StartPage({ searchParams }) {
     token,
     user_id: String(user_id),
     bot_username: String(bot),
+    bot_token: bot_token ? String(bot_token) : null,
     status: "pending",
     created_at: new Date(),
     expires_at: new Date(Date.now() + 10 * 60 * 1000),

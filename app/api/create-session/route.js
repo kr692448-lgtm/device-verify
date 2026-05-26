@@ -5,7 +5,7 @@ import crypto from "crypto";
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { user_id, bot_username } = body;
+    const { user_id, bot_username, bot_token } = body;
 
     if (!user_id) {
       return NextResponse.json({ error: "user_id is required" }, { status: 400 });
@@ -17,10 +17,8 @@ export async function POST(request) {
     const db = await getDb();
     const sessions = db.collection("sessions");
 
-    // Unique token per request — har baar naya link
     const token = crypto.randomBytes(24).toString("hex");
 
-    // Expire old pending sessions for this user+bot combo
     await sessions.updateMany(
       { user_id: String(user_id), bot_username: String(bot_username), status: "pending" },
       { $set: { status: "expired" } }
@@ -29,10 +27,11 @@ export async function POST(request) {
     const session = {
       token,
       user_id: String(user_id),
-      bot_username: String(bot_username), // stored dynamically — no env needed
+      bot_username: String(bot_username),
+      bot_token: bot_token ? String(bot_token) : null,
       status: "pending",
       created_at: new Date(),
-      expires_at: new Date(Date.now() + 10 * 60 * 1000), // 10 min
+      expires_at: new Date(Date.now() + 10 * 60 * 1000),
       device_fingerprint: null,
       ip_address: null,
       user_agent: null,
@@ -41,7 +40,6 @@ export async function POST(request) {
 
     await sessions.insertOne(session);
 
-    // Base URL: Vercel automatically provides host header
     const host = request.headers.get("host");
     const proto = host?.includes("localhost") ? "http" : "https";
     const baseUrl = `${proto}://${host}`;

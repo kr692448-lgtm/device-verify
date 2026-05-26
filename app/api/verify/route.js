@@ -14,7 +14,6 @@ export async function POST(request) {
     const sessions = db.collection("sessions");
     const devices = db.collection("devices");
 
-    // Find session
     const session = await sessions.findOne({ token });
 
     if (!session) {
@@ -32,23 +31,23 @@ export async function POST(request) {
 
     if (session.status === "expired" || new Date() > new Date(session.expires_at)) {
       await sessions.updateOne({ token }, { $set: { status: "expired" } });
-      return NextResponse.json({ error: "Verification link has expired. Please request a new one from the bot." }, { status: 410 });
+      return NextResponse.json(
+        { error: "Verification link has expired. Please request a new one from the bot." },
+        { status: 410 }
+      );
     }
 
     if (session.status !== "pending") {
       return NextResponse.json({ error: "Session is no longer valid" }, { status: 400 });
     }
 
-    // Get real IP
     const forwarded = request.headers.get("x-forwarded-for");
     const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
 
-    // Check if this fingerprint is already registered to a DIFFERENT user_id
     const existingDevice = await devices.findOne({ fingerprint });
 
     if (existingDevice && existingDevice.user_id !== session.user_id) {
-      // This device was already used by another user — block
       await sessions.updateOne(
         { token },
         {
@@ -71,10 +70,6 @@ export async function POST(request) {
       );
     }
 
-    // Check if same user is trying from multiple devices for refer (optional strict mode)
-    // Here we just register and verify
-
-    // Register or update device record
     await devices.updateOne(
       { fingerprint },
       {
@@ -93,7 +88,6 @@ export async function POST(request) {
       { upsert: true }
     );
 
-    // Mark session as verified
     await sessions.updateOne(
       { token },
       {
@@ -106,6 +100,30 @@ export async function POST(request) {
         },
       }
     );
+
+    if (session.bot_token) {
+      try {
+        await fetch(
+          `https://api.telegram.org/bot${session.bot_token}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: session.user_id,
+              text:
+                "✅ *DEVICE VERIFIED!*\n" +
+                "━━━━━━━━━━━━━━━━━━━━\n\n" +
+                "🎉 Your device has been successfully verified!\n" +
+                "You can now use the bot.\n\n" +
+                "━━━━━━━━━━━━━━━━━━━━",
+              parse_mode: "Markdown",
+            }),
+          }
+        );
+      } catch (notifyErr) {
+        console.error("Bot notify failed:", notifyErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,
