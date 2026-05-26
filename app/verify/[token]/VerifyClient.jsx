@@ -62,7 +62,7 @@ async function collectFingerprint() {
   return { fingerprint, components };
 }
 
-function ScannerRing({ state }) {
+function ScannerRing({ state, dark }) {
   const ringColor =
     state === "verified" ? "#00e5a0" :
     state === "conflict" ? "#ff4444" :
@@ -73,12 +73,11 @@ function ScannerRing({ state }) {
     state === "error"    ? "rgba(255,136,0,0.3)" : "rgba(108,99,255,0.3)";
 
   return (
-    <div style={{ position: "relative", width: 140, height: 140, margin: "0 auto" }}>
-      <div style={{ position:"absolute", inset:0, borderRadius:"50%", border:`2px solid ${ringColor}`, opacity:0.3, boxShadow:`0 0 20px ${glowColor}` }} />
-      <div style={{ position:"absolute", inset:16, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:0.5 }} />
-      <div style={{ position:"absolute", inset:32, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:0.7 }} />
-      <div style={{ position:"absolute", inset:48, borderRadius:"50%", background:ringColor, opacity:0.15, boxShadow:`0 0 30px ${ringColor}` }} />
-      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:8, height:8, borderRadius:"50%", background:ringColor, boxShadow:`0 0 12px ${ringColor}` }} />
+    <div style={{ position:"relative", width:140, height:140, margin:"0 auto" }}>
+      <div style={{ position:"absolute", inset:0, borderRadius:"50%", border:`2px solid ${ringColor}`, opacity:dark?0.3:0.5, boxShadow:`0 0 20px ${glowColor}` }} />
+      <div style={{ position:"absolute", inset:16, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:dark?0.5:0.6 }} />
+      <div style={{ position:"absolute", inset:32, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:dark?0.7:0.8 }} />
+      <div style={{ position:"absolute", inset:48, borderRadius:"50%", background:ringColor, opacity:dark?0.1:0.08, boxShadow:`0 0 30px ${ringColor}` }} />
       {(state === "scanning" || state === "idle") && (
         <div style={{ position:"absolute", inset:0, borderRadius:"50%", border:"2px solid transparent", borderTopColor:ringColor, borderRightColor:ringColor, animation:"spin 1.2s linear infinite", boxShadow:`0 0 10px ${glowColor}` }} />
       )}
@@ -94,13 +93,19 @@ function ScannerRing({ state }) {
           <line x1="90" y1="50" x2="50" y2="90" stroke="#ff4444" strokeWidth="3" strokeLinecap="round" />
         </svg>
       )}
+      {state === "error" && (
+        <svg style={{ position:"absolute", inset:0 }} width="140" height="140">
+          <line x1="70" y1="45" x2="70" y2="85" stroke="#ff8800" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="70" cy="98" r="3" fill="#ff8800" />
+        </svg>
+      )}
     </div>
   );
 }
 
-function ProgressBar({ progress, color }) {
+function ProgressBar({ progress, color, dark }) {
   return (
-    <div style={{ width:"100%", height:2, background:"rgba(255,255,255,0.05)", borderRadius:1, overflow:"hidden" }}>
+    <div style={{ width:"100%", height:2, background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.08)", borderRadius:1, overflow:"hidden" }}>
       <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg, transparent, ${color})`, transition:"width 0.3s ease", boxShadow:`0 0 8px ${color}` }} />
     </div>
   );
@@ -113,15 +118,36 @@ export default function VerifyClient({ token, session }) {
   const [subText, setSubText] = useState("Preparing secure environment");
   const [fingerprint, setFingerprint] = useState("");
   const [logs, setLogs] = useState([]);
+  const [dark, setDark] = useState(true);
   const hasRun = useRef(false);
 
   const addLog = (text) => setLogs(prev => [...prev.slice(-3), text]);
   const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
+  const theme = {
+    pageBg:       dark ? "#080810"                   : "#eef0f7",
+    gridLine:     dark ? "rgba(108,99,255,0.04)"     : "rgba(108,99,255,0.07)",
+    cardBg:       dark ? "rgba(10,10,22,0.96)"       : "rgba(255,255,255,0.98)",
+    cardBorder:   dark ? "rgba(255,255,255,0.06)"    : "rgba(0,0,0,0.08)",
+    cardShadow:   dark ? "0 40px 80px rgba(0,0,0,0.7)" : "0 20px 60px rgba(0,0,0,0.12)",
+    topBarBg:     dark ? "rgba(255,255,255,0.02)"    : "rgba(0,0,0,0.02)",
+    divider:      dark ? "rgba(255,255,255,0.05)"    : "rgba(0,0,0,0.07)",
+    bottomBarBg:  dark ? "rgba(0,0,0,0.25)"          : "rgba(0,0,0,0.03)",
+    labelFaint:   dark ? "rgba(255,255,255,0.12)"    : "rgba(0,0,0,0.25)",
+    textMuted:    dark ? "rgba(255,255,255,0.35)"    : "rgba(0,0,0,0.45)",
+    logBg:        dark ? "rgba(0,0,0,0.35)"          : "rgba(0,0,0,0.03)",
+    logBorder:    dark ? "rgba(255,255,255,0.05)"    : "rgba(0,0,0,0.07)",
+    logTextOld:   dark ? "rgba(255,255,255,0.2)"     : "rgba(0,0,0,0.3)",
+    logTextNew:   dark ? "rgba(255,255,255,0.55)"    : "rgba(0,0,0,0.65)",
+    toggleBg:     dark ? "rgba(255,255,255,0.07)"    : "rgba(0,0,0,0.07)",
+    toggleBorder: dark ? "rgba(255,255,255,0.12)"    : "rgba(0,0,0,0.12)",
+    toggleText:   dark ? "rgba(255,255,255,0.55)"    : "rgba(0,0,0,0.55)",
+    uidText:      dark ? "rgba(255,255,255,0.3)"     : "rgba(0,0,0,0.4)",
+  };
+
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
-
     if (!session) {
       setState("error"); setStatusText("INVALID SESSION");
       setSubText("This verification link does not exist"); return;
@@ -148,7 +174,6 @@ export default function VerifyClient({ token, session }) {
     addLog("Audio context sampled"); setProgress(55); await delay(300);
     setStatusText("GENERATING HASH"); setSubText("Computing SHA-256 fingerprint");
     addLog("Building cryptographic hash");
-
     let fp, comp;
     try {
       const result = await collectFingerprint();
@@ -158,20 +183,17 @@ export default function VerifyClient({ token, session }) {
       setState("error"); setStatusText("SCAN FAILED");
       setSubText("Unable to read device parameters"); return;
     }
-
     setProgress(75); addLog("Fingerprint: " + fp.slice(0,12).toUpperCase() + "..."); await delay(300);
     setStatusText("VERIFYING"); setSubText("Cross-checking with secure database");
     setProgress(88); await delay(400);
-
     try {
       const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ token, fingerprint: fp, components: comp }),
       });
       const data = await res.json();
       setProgress(100);
-
       if (!res.ok) {
         if (data.code === "DEVICE_CONFLICT") {
           setState("conflict"); setStatusText("DEVICE CONFLICT");
@@ -183,7 +205,6 @@ export default function VerifyClient({ token, session }) {
         }
         return;
       }
-
       setState("verified"); setStatusText("ACCESS GRANTED");
       setSubText("Device successfully authenticated");
       addLog("Verification complete");
@@ -209,93 +230,106 @@ export default function VerifyClient({ token, session }) {
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%;background:#080810}
+        html,body{height:100%;background:${theme.pageBg};transition:background 0.4s}
         @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
         @keyframes gridMove{from{transform:translateY(0)}to{transform:translateY(40px)}}
       `}</style>
 
-      <div style={{ position:"fixed", inset:0, zIndex:0, backgroundImage:`linear-gradient(rgba(108,99,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(108,99,255,0.04) 1px,transparent 1px)`, backgroundSize:"40px 40px", animation:"gridMove 4s linear infinite" }} />
-      <div style={{ position:"fixed", inset:0, zIndex:0, background:`radial-gradient(ellipse 60% 50% at 50% 50%,rgba(108,99,255,0.08) 0%,transparent 70%)` }} />
+      {/* Grid background */}
+      <div style={{ position:"fixed", inset:0, zIndex:0, backgroundImage:`linear-gradient(${theme.gridLine} 1px,transparent 1px),linear-gradient(90deg,${theme.gridLine} 1px,transparent 1px)`, backgroundSize:"40px 40px", animation:"gridMove 4s linear infinite", transition:"background-image 0.4s" }} />
+      <div style={{ position:"fixed", inset:0, zIndex:0, background:`radial-gradient(ellipse 60% 50% at 50% 50%,${dark?"rgba(108,99,255,0.07)":"rgba(108,99,255,0.05)"} 0%,transparent 70%)` }} />
+
+      {/* Theme toggle */}
+      <div style={{ position:"fixed", top:16, right:16, zIndex:10 }}>
+        <button
+          onClick={() => setDark(d => !d)}
+          style={{ background:theme.toggleBg, border:`1px solid ${theme.toggleBorder}`, borderRadius:20, padding:"7px 16px", cursor:"pointer", color:theme.toggleText, fontSize:11, letterSpacing:1.5, fontFamily:"'SF Mono','Fira Code','Consolas',monospace", transition:"all 0.3s", backdropFilter:"blur(8px)" }}
+        >
+          {dark ? "☀ LIGHT" : "☾ DARK"}
+        </button>
+      </div>
 
       <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"'SF Mono','Fira Code','Consolas',monospace" }}>
-        <div style={{ width:"100%", maxWidth:360, background:"rgba(10,10,20,0.92)", border:`1px solid ${accentColor}22`, borderRadius:4, overflow:"hidden", boxShadow:`0 0 0 1px rgba(255,255,255,0.03),0 40px 80px rgba(0,0,0,0.6),0 0 60px ${accentColor}0d`, animation:"fadeUp 0.4s ease", transition:"box-shadow 0.5s,border-color 0.5s" }}>
+        <div style={{ width:"100%", maxWidth:360, background:theme.cardBg, border:`1px solid ${theme.cardBorder}`, borderRadius:6, overflow:"hidden", boxShadow:`${theme.cardShadow},0 0 60px ${accentColor}0d`, animation:"fadeUp 0.4s ease", transition:"background 0.4s,border-color 0.3s,box-shadow 0.5s" }}>
 
           {/* Top bar */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"rgba(255,255,255,0.02)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:`1px solid ${theme.divider}`, background:theme.topBarBg }}>
             <div style={{ display:"flex", gap:6 }}>
               {["#ff5f57","#ffbd2e","#28ca41"].map((c,i) => (
-                <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:c, opacity:0.6 }} />
+                <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:c, opacity:0.7 }} />
               ))}
             </div>
-            <span style={{ color:"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:2 }}>NXTZEN · SECURITY CORE v2</span>
-            <div style={{ width:6, height:6, borderRadius:"50%", background:accentColor, boxShadow:`0 0 6px ${accentColor}`, animation:"pulse 2s infinite", transition:"background 0.5s,box-shadow 0.5s" }} />
+            <span style={{ color:theme.labelFaint, fontSize:9, letterSpacing:2 }}>NXTZEN · SECURITY CORE v2</span>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:accentColor, boxShadow:`0 0 6px ${accentColor}`, animation:"pulse 2s infinite" }} />
           </div>
 
           {/* Body */}
           <div style={{ padding:"32px 28px 28px" }}>
-            <div style={{ marginBottom:28 }}><ScannerRing state={state} /></div>
+            <div style={{ marginBottom:28 }}>
+              <ScannerRing state={state} dark={dark} />
+            </div>
 
             <div style={{ textAlign:"center", marginBottom:20 }}>
-              <div style={{ color:accentColor, fontSize:13, fontWeight:700, letterSpacing:3, marginBottom:6, transition:"color 0.5s" }}>
+              <div style={{ color:accentColor, fontSize:13, fontWeight:700, letterSpacing:3, marginBottom:6 }}>
                 {statusText}
                 {state === "scanning" && <span style={{ animation:"blink 1s infinite" }}>_</span>}
               </div>
-              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:10, letterSpacing:1, lineHeight:1.5 }}>{subText}</div>
+              <div style={{ color:theme.textMuted, fontSize:10, letterSpacing:1, lineHeight:1.6 }}>{subText}</div>
             </div>
 
             <div style={{ marginBottom:20 }}>
-              <ProgressBar progress={progress} color={accentColor} />
+              <ProgressBar progress={progress} color={accentColor} dark={dark} />
               <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
-                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:9, letterSpacing:1 }}>PROGRESS</span>
-                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.7 }}>{progress}%</span>
+                <span style={{ color:theme.labelFaint, fontSize:9, letterSpacing:1 }}>PROGRESS</span>
+                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.8 }}>{progress}%</span>
               </div>
             </div>
 
-            <div style={{ background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.04)", borderRadius:2, padding:"10px 12px", minHeight:72, marginBottom:20 }}>
+            <div style={{ background:theme.logBg, border:`1px solid ${theme.logBorder}`, borderRadius:3, padding:"10px 12px", minHeight:72, marginBottom:20 }}>
               {logs.length === 0 ? (
-                <div style={{ color:"rgba(255,255,255,0.1)", fontSize:9, letterSpacing:1 }}>&gt; AWAITING SCAN...</div>
+                <div style={{ color:theme.labelFaint, fontSize:9, letterSpacing:1 }}>&gt; AWAITING SCAN...</div>
               ) : logs.map((log,i) => (
-                <div key={i} style={{ color:i===logs.length-1?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:0.5, lineHeight:1.8 }}>
-                  <span style={{ color:accentColor, opacity:0.6 }}>&gt; </span>{log}
+                <div key={i} style={{ color:i===logs.length-1?theme.logTextNew:theme.logTextOld, fontSize:9, letterSpacing:0.5, lineHeight:1.8 }}>
+                  <span style={{ color:accentColor, opacity:0.7 }}>&gt; </span>{log}
                 </div>
               ))}
             </div>
 
             {shortFp && (
-              <div style={{ background:`${accentColor}0a`, border:`1px solid ${accentColor}22`, borderRadius:2, padding:"8px 12px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ color:"rgba(255,255,255,0.2)", fontSize:8, letterSpacing:2 }}>DEVICE ID</span>
-                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.8 }}>{shortFp}</span>
+              <div style={{ background:`${accentColor}0d`, border:`1px solid ${accentColor}28`, borderRadius:3, padding:"8px 12px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ color:theme.labelFaint, fontSize:8, letterSpacing:2 }}>DEVICE ID</span>
+                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.9 }}>{shortFp}</span>
               </div>
             )}
 
             {state === "conflict" && (
-              <div style={{ background:"rgba(255,68,68,0.06)", border:"1px solid rgba(255,68,68,0.2)", borderRadius:2, padding:"12px 14px", marginBottom:16 }}>
+              <div style={{ background:"rgba(255,68,68,0.06)", border:"1px solid rgba(255,68,68,0.2)", borderRadius:3, padding:"12px 14px", marginBottom:16 }}>
                 <div style={{ color:"#ff4444", fontSize:10, letterSpacing:2, marginBottom:6, fontWeight:700 }}>CONFLICT DETECTED</div>
-                <div style={{ color:"rgba(255,255,255,0.35)", fontSize:9, lineHeight:1.7 }}>
+                <div style={{ color:theme.textMuted, fontSize:9, lineHeight:1.7 }}>
                   This device fingerprint is already bound to a different account. Each physical device may only be associated with one account.
                 </div>
-                <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,68,68,0.1)", display:"flex", justifyContent:"space-between" }}>
-                  <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:1 }}>REASON</span>
-                  <span style={{ color:"#ff4444", fontSize:8, letterSpacing:1, opacity:0.7 }}>DEVICE_ALREADY_REGISTERED</span>
+                <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,68,68,0.12)", display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ color:theme.labelFaint, fontSize:8, letterSpacing:1 }}>REASON</span>
+                  <span style={{ color:"#ff4444", fontSize:8, letterSpacing:1, opacity:0.8 }}>DEVICE_ALREADY_REGISTERED</span>
                 </div>
               </div>
             )}
 
             {session?.user_id && (
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
-                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:2 }}>UID</span>
-                <span style={{ color:"rgba(255,255,255,0.25)", fontSize:9 }}>#{session.user_id}</span>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:12, borderTop:`1px solid ${theme.divider}` }}>
+                <span style={{ color:theme.labelFaint, fontSize:8, letterSpacing:2 }}>UID</span>
+                <span style={{ color:theme.uidText, fontSize:9 }}>#{session.user_id}</span>
               </div>
             )}
           </div>
 
           {/* Bottom bar */}
-          <div style={{ padding:"8px 16px", borderTop:"1px solid rgba(255,255,255,0.03)", background:"rgba(0,0,0,0.2)", display:"flex", justifyContent:"space-between" }}>
-            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>SHA-256 · AES-256 · TLS 1.3</span>
-            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>NXTZEN ENGINE</span>
+          <div style={{ padding:"8px 16px", borderTop:`1px solid ${theme.divider}`, background:theme.bottomBarBg, display:"flex", justifyContent:"space-between" }}>
+            <span style={{ color:theme.labelFaint, fontSize:8, letterSpacing:1 }}>SHA-256 · AES-256 · TLS 1.3</span>
+            <span style={{ color:theme.labelFaint, fontSize:8, letterSpacing:1 }}>NXTZEN ENGINE</span>
           </div>
 
         </div>
