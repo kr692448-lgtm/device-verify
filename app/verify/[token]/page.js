@@ -1,36 +1,28 @@
 import { getDb } from "@/lib/mongodb";
 import VerifyClient from "./VerifyClient";
 
-export const dynamic = "force-dynamic";
+export default async function VerifyPage({ params }) {
+  const { token } = params;
+  let session = null;
 
-async function getSession(token) {
   try {
     const db = await getDb();
     const sessions = db.collection("sessions");
-    const session = await sessions.findOne({ token });
-    if (!session) return null;
-    return {
-      token: session.token,
-      user_id: session.user_id,
-      status: session.status,
-      bot_username: session.bot_username,
-      expires_at: session.expires_at?.toISOString() || null,
-    };
-  } catch {
-    return null;
+    const doc = await sessions.findOne({ token });
+
+    if (doc) {
+      session = {
+        user_id:      doc.user_id      || null,
+        first_name:   doc.first_name   || null,
+        bot_username: doc.bot_username || null,
+        bot_id:       doc.bot_id       || null,
+        status:       doc.status       || "pending",
+        expires_at:   doc.expires_at?.toISOString() || null,
+      };
+    }
+  } catch (e) {
+    console.error("VerifyPage fetch error:", e);
   }
-}
-
-export async function generateMetadata({ params }) {
-  return {
-    title: "Device Verification — NxtZen",
-    description: "Secure device verification portal",
-  };
-}
-
-export default async function VerifyPage({ params }) {
-  const { token } = params;
-  const session = await getSession(token);
 
   return <VerifyClient token={token} session={session} />;
 }

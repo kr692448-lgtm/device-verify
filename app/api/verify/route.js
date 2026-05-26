@@ -6,124 +6,123 @@ export async function POST(request) {
     const body = await request.json();
     const { token, fingerprint, components } = body;
 
-    if (!token || !fingerprint) {
-      return NextResponse.json({ error: "token and fingerprint are required" }, { status: 400 });
-    }
+    if (!token)       return NextResponse.json({ error: "token required" },       { status: 400 });
+    if (!fingerprint) return NextResponse.json({ error: "fingerprint required" }, { status: 400 });
 
     const db = await getDb();
     const sessions = db.collection("sessions");
-    const devices = db.collection("devices");
 
+    // Token dhundo
     const session = await sessions.findOne({ token });
 
-    if (!session) {
-      return NextResponse.json({ error: "Invalid verification link" }, { status: 404 });
-    }
+    if (!session)
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 404 });
 
-    if (session.status === "verified") {
-      return NextResponse.json({
-        success: true,
-        already_verified: true,
-        bot_username: session.bot_username,
-        user_id: session.user_id,
-      });
-    }
+    if (session.status === "expired")
+      return NextResponse.json({ error: "Session expired" }, { status: 410 });
 
-    if (session.status === "expired" || new Date() > new Date(session.expires_at)) {
-      await sessions.updateOne({ token }, { $set: { status: "expired" } });
-      return NextResponse.json(
-        { error: "Verification link has expired. Please request a new one from the bot." },
-        { status: 410 }
-      );
-    }
+    if (session.status === "verified")
+      return NextResponse.json({ error: "Already verified" }, { status: 400 });
 
-    if (session.status !== "pending") {
-      return NextResponse.json({ error: "Session is no longer valid" }, { status: 400 });
-    }
+    if (session.expires_at && new Date() > new Date(session.expires_at))
+      return NextResponse.json({ error: "Session expired" }, { status: 410 });
 
-    const forwarded = request.headers.get("x-forwarded-for");
-    const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown";
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+            || request.headers.get("x-real-ip")
+            || null;
+    const ua = request.headers.get("user-agent") || null;
 
-    const existingDevice = await devices.findOne({ fingerprint });
+    // --- DEVICE CONFLICT CHECK ---
+    // Same bot_id ke andar same fingerprint kisi ALAG user ke saath linked hai?
+    const conflict = await sessions.findOne({
+      bot_id:            session.bot_id,
+      device_fingerprint: fingerprint,
+      status:            "verified",
+      user_id:           { $ne: session.user_id },
+    });
 
-    if (existingDevice && existingDevice.user_id !== session.user_id) {
+    if (conflict) {
+      // Conflict session mark karo
       await sessions.updateOne(
         { token },
         {
           $set: {
-            status: "failed",
+            status:            "conflict",
             device_fingerprint: fingerprint,
-            ip_address: ip,
-            user_agent: userAgent,
-            fail_reason: "device_already_registered",
-            verified_at: new Date(),
+            ip_address:        ip,
+            user_agent:        ua,
+            components:        components || null,
+            conflict_with:     conflict.user_id,
+            verified_at:       new Date(),
           },
         }
       );
 
-      // conflict webhook hit karo
+      // Conflict webhook call karo agar diya tha
       if (session.webhook_conflict_url) {
         try {
-          await fetch(session.webhook_conflict_url, { method: "GET" });
-        } catch (err) {
-          console.error("Conflict webhook failed:", err);
+          await fetch(session.webhook_conflict_url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id:        session.user_id,
+              bot_id:         session.bot_id,
+              fingerprint,
+              conflict_with:  conflict.user_id,
+            }),
+          });
+        } catch (e) {
+          console.error("conflict webhook error:", e);
         }
       }
 
       return NextResponse.json(
         {
-          error: "This device is already registered with a different account.",
-          code: "DEVICE_CONFLICT",
+          error: "DEVICE_CONFLICT",
+          code:  "DEVICE_CONFLICT",
+          message: "This device is already registered to another account.",
         },
         { status: 409 }
       );
     }
 
-    await devices.updateOne(
-      { fingerprint },
-      {
-        $set: {
-          fingerprint,
-          user_id: session.user_id,
-          last_seen: new Date(),
-          ip_address: ip,
-          user_agent: userAgent,
-          components: components || {},
-        },
-        $setOnInsert: { first_seen: new Date() },
-      },
-      { upsert: true }
-    );
-
+    // --- SUCCESS: Verify karo ---
     await sessions.updateOne(
       { token },
       {
         $set: {
-          status: "verified",
+          status:            "verified",
           device_fingerprint: fingerprint,
-          ip_address: ip,
-          user_agent: userAgent,
-          verified_at: new Date(),
-          expires_at: new Date(),
+          ip_address:        ip,
+          user_agent:        ua,
+          components:        components || null,
+          verified_at:       new Date(),
         },
       }
     );
 
-    // success webhook hit karo
+    // Success webhook call karo
     if (session.webhook_url) {
       try {
-        await fetch(session.webhook_url, { method: "GET" });
-      } catch (err) {
-        console.error("Webhook notify failed:", err);
+        await fetch(session.webhook_url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id:     session.user_id,
+            bot_id:      session.bot_id,
+            fingerprint,
+            verified_at: new Date().toISOString(),
+          }),
+        });
+      } catch (e) {
+        console.error("success webhook error:", e);
       }
     }
 
     return NextResponse.json({
-      success: true,
-      user_id: session.user_id,
-      bot_username: session.bot_username,
-      fingerprint,
+      success:  true,
+      user_id:  session.user_id,
+      bot_id:   session.bot_id,
     });
   } catch (err) {
     console.error("verify error:", err);

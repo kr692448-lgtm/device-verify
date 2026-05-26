@@ -8,46 +8,61 @@ export async function POST(request) {
     const {
       user_id,
       bot_username,
-      bot_token,
+      bot_id,
+      first_name,
       webhook_url,
       webhook_conflict_url,
-      first_name,
     } = body;
 
-    if (!user_id) return NextResponse.json({ error: "user_id is required" }, { status: 400 });
-    if (!bot_username) return NextResponse.json({ error: "bot_username is required" }, { status: 400 });
+    if (!user_id)
+      return NextResponse.json({ error: "user_id is required" }, { status: 400 });
+    if (!bot_username)
+      return NextResponse.json({ error: "bot_username is required" }, { status: 400 });
+    if (!bot_id)
+      return NextResponse.json({ error: "bot_id is required" }, { status: 400 });
 
     const db = await getDb();
     const sessions = db.collection("sessions");
+
     const token = crypto.randomBytes(24).toString("hex");
 
+    // Purane pending sessions expire karo same user + bot_id ke
     await sessions.updateMany(
-      { user_id: String(user_id), bot_username: String(bot_username), status: "pending" },
+      {
+        user_id:     String(user_id),
+        bot_id:      String(bot_id),
+        status:      "pending",
+      },
       { $set: { status: "expired" } }
     );
 
     const session = {
       token,
-      user_id: String(user_id),
-      first_name: first_name ? String(first_name) : null,
-      bot_username: String(bot_username),
-      bot_token: bot_token ? String(bot_token) : null,
-      webhook_url: webhook_url ? String(webhook_url) : null,
+      user_id:              String(user_id),
+      first_name:           first_name ? String(first_name) : null,
+      bot_username:         String(bot_username),
+      bot_id:               String(bot_id),
+      webhook_url:          webhook_url          ? String(webhook_url)          : null,
       webhook_conflict_url: webhook_conflict_url ? String(webhook_conflict_url) : null,
-      status: "pending",
-      created_at: new Date(),
-      expires_at: new Date(Date.now() + 10 * 60 * 1000),
-      device_fingerprint: null,
-      ip_address: null,
-      user_agent: null,
-      verified_at: null,
+      status:               "pending",
+      created_at:           new Date(),
+      expires_at:           new Date(Date.now() + 10 * 60 * 1000),
+      device_fingerprint:   null,
+      ip_address:           null,
+      user_agent:           null,
+      verified_at:          null,
     };
 
     await sessions.insertOne(session);
 
     const verifyUrl = `https://device-verify-ten.vercel.app/verify/${token}`;
 
-    return NextResponse.json({ success: true, token, url: verifyUrl, expires_at: session.expires_at });
+    return NextResponse.json({
+      success:    true,
+      token,
+      url:        verifyUrl,
+      expires_at: session.expires_at,
+    });
   } catch (err) {
     console.error("create-session error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

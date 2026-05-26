@@ -244,15 +244,12 @@ function ProceedBtn({ C, label }) {
       width:"100%", padding:"15px 0",
       display:"flex", alignItems:"center", justifyContent:"center", gap:9,
       background:`linear-gradient(135deg, ${C.main}, ${C.grad})`,
-      border:"none",
-      borderRadius:12, color:"#fff",
+      border:"none", borderRadius:12, color:"#fff",
       cursor:"pointer", outline:"none",
       fontSize:14, letterSpacing:1.5, fontWeight:700,
       fontFamily:"'DM Sans','Segoe UI',sans-serif",
       transition:"all 0.22s ease",
-      boxShadow: hov
-        ? `0 12px 36px ${C.main}60, 0 4px 12px ${C.grad}40`
-        : `0 6px 24px ${C.main}40`,
+      boxShadow: hov ? `0 12px 36px ${C.main}60, 0 4px 12px ${C.grad}40` : `0 6px 24px ${C.main}40`,
       transform: hov ? "translateY(-1px)" : "translateY(0)",
       animation:"fadeUp 0.4s ease both 0.1s",
       opacity: hov ? 0.92 : 1,
@@ -266,73 +263,126 @@ function ProceedBtn({ C, label }) {
 }
 
 export default function VerifyClient({ token, session }) {
-  const [state,       setState]      = useState("idle");
-  const [pct,         setPct]        = useState(0);
-  const [statusText,  setStatusText] = useState("Initializing");
-  const [subText,     setSubText]    = useState("Preparing secure environment");
-  const [fingerprint, setFingerprint]= useState("");
-  const [logs,        setLogs]       = useState([]);
-  const [dark,        setDark]       = useState(true);
+  const [state,        setState]      = useState("idle");
+  const [pct,          setPct]        = useState(0);
+  const [statusText,   setStatusText] = useState("Initializing");
+  const [subText,      setSubText]    = useState("Preparing secure environment");
+  const [fingerprint,  setFingerprint]= useState("");
+  const [logs,         setLogs]       = useState([]);
+  const [dark,         setDark]       = useState(true);
   const hasRun = useRef(false);
 
   const C    = getStateColor(state);
   const done = ["verified","conflict","error"].includes(state);
-  const userName = session?.first_name || session?.user_name || null;
+
+  // session se name aur id lo
+  const userName = session?.first_name || null;
   const userId   = session?.user_id    || null;
-  const addLog = t => setLogs(p=>[...p.slice(-4),t]);
-  const wait   = ms => new Promise(r=>setTimeout(r,ms));
+
+  const addLog = t => setLogs(p=>[...p.slice(-4), t]);
+  const wait   = ms => new Promise(r=>setTimeout(r, ms));
 
   useEffect(()=>{
-    if(hasRun.current)return; hasRun.current=true;
-    try{window.Telegram?.WebApp?.ready();}catch{}
-    if(!session){setState("error");setStatusText("Invalid Session");setSubText("This link does not exist");return;}
-    if(session.status==="expired"||(session.expires_at&&new Date()>new Date(session.expires_at))){
-      setState("error");setStatusText("Session Expired");setSubText("Request a new verification link from the bot");return;
+    if(hasRun.current) return;
+    hasRun.current = true;
+    try{ window.Telegram?.WebApp?.ready(); }catch{}
+
+    if(!session){
+      setState("error"); setStatusText("Invalid Session");
+      setSubText("This link does not exist or has been removed.");
+      return;
     }
-    if(session.status==="verified"){setState("verified");setStatusText("Already Verified");setSubText("Device already authenticated");setPct(100);return;}
+    if(
+      session.status === "expired" ||
+      (session.expires_at && new Date() > new Date(session.expires_at))
+    ){
+      setState("error"); setStatusText("Session Expired");
+      setSubText("Request a new verification link from the bot.");
+      return;
+    }
+    if(session.status === "verified"){
+      setState("verified"); setStatusText("Already Verified");
+      setSubText("This device is already authenticated."); setPct(100);
+      return;
+    }
+
     runScan();
-  },[]);
+  }, []);
 
   async function runScan(){
     setState("scanning");
-    setStatusText("Scanning Device");setSubText("Collecting hardware parameters");
-    addLog("Hardware profiler initiated");setPct(10);await wait(350);
-    addLog("Canvas fingerprint captured");setPct(22);await wait(300);
-    addLog("WebGL renderer identified");setPct(36);await wait(300);
-    addLog("Audio context fingerprinted");setPct(50);await wait(300);
-    setStatusText("Generating Hash");setSubText("Computing SHA-256 fingerprint");
+    setStatusText("Scanning Device"); setSubText("Collecting hardware parameters");
+    addLog("Hardware profiler initiated"); setPct(10); await wait(350);
+    addLog("Canvas fingerprint captured"); setPct(22); await wait(300);
+    addLog("WebGL renderer identified");   setPct(36); await wait(300);
+    addLog("Audio context fingerprinted"); setPct(50); await wait(300);
+    setStatusText("Generating Hash"); setSubText("Computing SHA-256 fingerprint");
     addLog("Hashing entropy pool");
-    let fp,comp;
-    try{const r=await collectFingerprint();fp=r.fingerprint;comp=r.components;setFingerprint(fp);}
-    catch{setState("error");setStatusText("Scan Failed");setSubText("Unable to read device parameters");return;}
-    setPct(68);addLog("ID: "+fp.slice(0,12).toUpperCase()+"···");await wait(300);
-    setStatusText("Authenticating");setSubText("Cross-referencing secure registry");
-    setPct(84);await wait(400);
+
+    let fp, comp;
     try{
-      const res=await fetch("/api/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,fingerprint:fp,components:comp})});
-      const data=await res.json();setPct(100);
+      const r = await collectFingerprint();
+      fp = r.fingerprint; comp = r.components;
+      setFingerprint(fp);
+    } catch {
+      setState("error"); setStatusText("Scan Failed");
+      setSubText("Unable to read device parameters.");
+      return;
+    }
+
+    setPct(68); addLog("ID: " + fp.slice(0,12).toUpperCase() + "···"); await wait(300);
+    setStatusText("Authenticating"); setSubText("Cross-referencing secure registry");
+    setPct(84); await wait(400);
+
+    try{
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, fingerprint: fp, components: comp }),
+      });
+      const data = await res.json();
+      setPct(100);
+
       if(!res.ok){
-        if(data.code==="DEVICE_CONFLICT"){setState("conflict");setStatusText("Access Denied");setSubText("This device is bound to another account");addLog("Conflict: Duplicate identity detected");}
-        else{setState("error");setStatusText("Verification Failed");setSubText(data.error||"An error occurred");}
+        if(data.code === "DEVICE_CONFLICT"){
+          setState("conflict");
+          setStatusText("Access Denied");
+          setSubText("This device is bound to another account.");
+          addLog("Conflict: Duplicate identity detected");
+        } else {
+          setState("error");
+          setStatusText("Verification Failed");
+          setSubText(data.error || "An error occurred.");
+        }
         return;
       }
-      setState("verified");setStatusText("Access Granted");setSubText("Identity confirmed — you may now proceed");addLog("Verification complete");
-    }catch{setState("error");setStatusText("Network Error");setSubText("Connection to server failed");}
+
+      setState("verified");
+      setStatusText("Access Granted");
+      setSubText("Identity confirmed — you may now proceed.");
+      addLog("Verification complete");
+    } catch {
+      setState("error");
+      setStatusText("Network Error");
+      setSubText("Connection to server failed.");
+    }
   }
 
-  const shortFp = fingerprint ? fingerprint.slice(0,8).toUpperCase()+"···"+fingerprint.slice(-8).toUpperCase() : null;
+  const shortFp = fingerprint
+    ? fingerprint.slice(0,8).toUpperCase() + "···" + fingerprint.slice(-8).toUpperCase()
+    : null;
 
-  const pageBg   = dark
+  const pageBg = dark
     ? `radial-gradient(ellipse 80% 60% at 15% 15%, ${C.main}12 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 85% 85%, ${C.grad}0e 0%, transparent 55%), #0b0e1a`
     : `radial-gradient(ellipse 80% 60% at 15% 15%, ${C.light} 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 85% 85%, ${C.border}80 0%, transparent 55%), #f0f4ff`;
-  const cardBg   = dark ? "rgba(14,18,32,0.97)"   : "rgba(255,255,255,0.98)";
-  const cardBdr  = dark ? "rgba(255,255,255,0.08)" : C.border;
+  const cardBg  = dark ? "rgba(14,18,32,0.97)"   : "rgba(255,255,255,0.98)";
+  const cardBdr = dark ? "rgba(255,255,255,0.08)" : C.border;
   const cardShad = dark
     ? `0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px ${C.main}15, inset 0 1px 0 rgba(255,255,255,0.05)`
     : `0 12px 60px rgba(0,0,0,0.10), 0 0 0 1px ${C.border}, inset 0 1px 0 #fff`;
-  const hdrBg    = dark ? `linear-gradient(90deg, ${C.main}0e, ${C.grad}08)` : `linear-gradient(90deg, ${C.light}, #fff)`;
-  const hdrBdr   = dark ? "rgba(255,255,255,0.06)" : C.border;
-  const ftrBg    = dark ? "rgba(0,0,0,0.3)"        : C.light+"aa";
+  const hdrBg   = dark ? `linear-gradient(90deg, ${C.main}0e, ${C.grad}08)` : `linear-gradient(90deg, ${C.light}, #fff)`;
+  const hdrBdr  = dark ? "rgba(255,255,255,0.06)" : C.border;
+  const ftrBg   = dark ? "rgba(0,0,0,0.3)"        : C.light + "aa";
   const labelClr = dark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.38)";
   const titleClr = dark ? "#eef2ff"                : "#0f1629";
   const subClr   = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)";
@@ -341,7 +391,7 @@ export default function VerifyClient({ token, session }) {
   const tglClr   = dark ? "rgba(255,255,255,0.55)" : C.text;
 
   const badgeLabel = done
-    ? (state==="verified"?"VERIFIED":state==="conflict"?"BLOCKED":"ERROR")
+    ? (state==="verified" ? "VERIFIED" : state==="conflict" ? "BLOCKED" : "ERROR")
     : "SCANNING";
 
   return (
