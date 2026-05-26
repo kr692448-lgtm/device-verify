@@ -81,8 +81,7 @@ function ShieldIcon({ size=40, state }) {
       <svg style={{ position:"absolute", inset:0 }} width={size*2.4} height={size*2.4} viewBox="0 0 100 100">
         <defs>
           <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={c.main}/>
-            <stop offset="100%" stopColor={c.grad}/>
+            <stop offset="0%" stopColor={c.main}/><stop offset="100%" stopColor={c.grad}/>
           </linearGradient>
         </defs>
         <circle cx="50" cy="50" r="46" fill="none" stroke={c.border} strokeWidth="1.2"/>
@@ -112,8 +111,7 @@ function ShieldIcon({ size=40, state }) {
         <svg width={size*0.72} height={size*0.82} viewBox="0 0 36 42" fill="none">
           <defs>
             <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={c.main}/>
-              <stop offset="100%" stopColor={c.grad}/>
+              <stop offset="0%" stopColor={c.main}/><stop offset="100%" stopColor={c.grad}/>
             </linearGradient>
           </defs>
           <path d="M18 2L4 8v12c0 9 6.3 17.4 14 20 7.7-2.6 14-11 14-20V8L18 2z"
@@ -156,14 +154,13 @@ function Avatar({ name, color, grad, light, text, dark }) {
 function UserStrip({ name, userId, C, dark }) {
   if(!name && !userId) return null;
   const displayName = name || "User";
-  const stripBg = dark ? "rgba(255,255,255,0.04)" : "rgba(248,249,255,0.95)";
-  const stripBdr = dark ? "rgba(255,255,255,0.08)" : C.border;
   return (
     <div style={{
       display:"flex", alignItems:"center", gap:12,
       padding:"11px 14px", marginBottom:20,
-      background:stripBg, border:`1px solid ${stripBdr}`, borderRadius:12,
-      animation:"fadeUp 0.4s ease both",
+      background: dark ? "rgba(255,255,255,0.04)" : "rgba(248,249,255,0.95)",
+      border:`1px solid ${dark ? "rgba(255,255,255,0.08)" : C.border}`,
+      borderRadius:12, animation:"fadeUp 0.4s ease both",
     }}>
       <Avatar name={displayName} color={C.main} grad={C.grad} light={C.light} text={C.text} dark={dark}/>
       <div style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0 }}>
@@ -244,21 +241,25 @@ function ProceedBtn({ C, label }) {
   function go(){ try{ window.Telegram?.WebApp?.close?window.Telegram.WebApp.close():window.close(); }catch{ window.close(); } }
   return (
     <button onClick={go} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
-      width:"100%", padding:"13px 0",
-      display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-      background: hov ? `linear-gradient(135deg, ${C.main}, ${C.grad})` : `linear-gradient(135deg, ${C.main}18, ${C.grad}10)`,
-      border:`1.5px solid ${C.main}${hov?"":"55"}`,
-      borderRadius:10, color: hov?"#fff":C.main,
+      width:"100%", padding:"15px 0",
+      display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+      background:`linear-gradient(135deg, ${C.main}, ${C.grad})`,
+      border:"none",
+      borderRadius:12, color:"#fff",
       cursor:"pointer", outline:"none",
-      fontSize:12, letterSpacing:2, fontWeight:700,
+      fontSize:14, letterSpacing:1.5, fontWeight:700,
       fontFamily:"'DM Sans','Segoe UI',sans-serif",
       transition:"all 0.22s ease",
-      boxShadow: hov ? `0 8px 28px ${C.main}45` : "none",
+      boxShadow: hov
+        ? `0 12px 36px ${C.main}60, 0 4px 12px ${C.grad}40`
+        : `0 6px 24px ${C.main}40`,
+      transform: hov ? "translateY(-1px)" : "translateY(0)",
       animation:"fadeUp 0.4s ease both 0.1s",
+      opacity: hov ? 0.92 : 1,
     }}>
       {label}
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <path d="M2 6h8M6 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+        <path d="M2 6h8M6 2l4 4-4 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     </button>
   );
@@ -321,24 +322,23 @@ export default function VerifyClient({ token, session }) {
 
   const shortFp = fingerprint ? fingerprint.slice(0,8).toUpperCase()+"···"+fingerprint.slice(-8).toUpperCase() : null;
 
-  /* theme tokens */
   const pageBg   = dark
     ? `radial-gradient(ellipse 80% 60% at 15% 15%, ${C.main}12 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 85% 85%, ${C.grad}0e 0%, transparent 55%), #0b0e1a`
     : `radial-gradient(ellipse 80% 60% at 15% 15%, ${C.light} 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 85% 85%, ${C.border}80 0%, transparent 55%), #f0f4ff`;
-  const cardBg   = dark ? "rgba(14,18,32,0.97)"         : "rgba(255,255,255,0.98)";
-  const cardBdr  = dark ? `rgba(255,255,255,0.08)`       : C.border;
+  const cardBg   = dark ? "rgba(14,18,32,0.97)"   : "rgba(255,255,255,0.98)";
+  const cardBdr  = dark ? "rgba(255,255,255,0.08)" : C.border;
   const cardShad = dark
     ? `0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px ${C.main}15, inset 0 1px 0 rgba(255,255,255,0.05)`
     : `0 12px 60px rgba(0,0,0,0.10), 0 0 0 1px ${C.border}, inset 0 1px 0 #fff`;
   const hdrBg    = dark ? `linear-gradient(90deg, ${C.main}0e, ${C.grad}08)` : `linear-gradient(90deg, ${C.light}, #fff)`;
-  const hdrBdr   = dark ? "rgba(255,255,255,0.06)"      : C.border;
-  const ftrBg    = dark ? "rgba(0,0,0,0.3)"             : C.light+"aa";
-  const labelClr = dark ? "rgba(255,255,255,0.28)"      : "rgba(0,0,0,0.38)";
-  const titleClr = dark ? "#eef2ff"                     : "#0f1629";
-  const subClr   = dark ? "rgba(255,255,255,0.45)"      : "rgba(0,0,0,0.5)";
-  const tglBg    = dark ? "rgba(255,255,255,0.06)"      : "rgba(0,0,0,0.05)";
-  const tglBdr   = dark ? "rgba(255,255,255,0.12)"      : C.border;
-  const tglClr   = dark ? "rgba(255,255,255,0.55)"      : C.text;
+  const hdrBdr   = dark ? "rgba(255,255,255,0.06)" : C.border;
+  const ftrBg    = dark ? "rgba(0,0,0,0.3)"        : C.light+"aa";
+  const labelClr = dark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.38)";
+  const titleClr = dark ? "#eef2ff"                : "#0f1629";
+  const subClr   = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)";
+  const tglBg    = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
+  const tglBdr   = dark ? "rgba(255,255,255,0.12)" : C.border;
+  const tglClr   = dark ? "rgba(255,255,255,0.55)" : C.text;
 
   const badgeLabel = done
     ? (state==="verified"?"VERIFIED":state==="conflict"?"BLOCKED":"ERROR")
@@ -358,7 +358,6 @@ export default function VerifyClient({ token, session }) {
 
       <div style={{ position:"fixed", inset:0, zIndex:0, background:pageBg, transition:"background 0.4s" }}/>
 
-      {/* ── CARD ── */}
       <div style={{
         position:"relative", zIndex:2,
         minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
@@ -374,14 +373,13 @@ export default function VerifyClient({ token, session }) {
           transition:"background 0.35s,border-color 0.35s,box-shadow 0.4s",
         }}>
 
-          {/* ── HEADER — toggle lives here ── */}
+          {/* HEADER */}
           <div style={{
             display:"flex", alignItems:"center", justifyContent:"space-between",
             padding:"12px 16px",
             borderBottom:`1px solid ${hdrBdr}`,
             background:hdrBg, transition:"background 0.35s",
           }}>
-            {/* Left: logo + name */}
             <div style={{ display:"flex", alignItems:"center", gap:9 }}>
               <div style={{
                 width:30, height:30, borderRadius:9,
@@ -404,7 +402,6 @@ export default function VerifyClient({ token, session }) {
               </span>
             </div>
 
-            {/* Right: badge + toggle */}
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <span style={{
                 padding:"3px 9px", borderRadius:6,
@@ -414,7 +411,6 @@ export default function VerifyClient({ token, session }) {
                 fontFamily:"'IBM Plex Mono',monospace",
               }}>{badgeLabel}</span>
 
-              {/* Toggle — inside header, right side */}
               <button onClick={()=>setDark(d=>!d)} title={dark?"Light mode":"Dark mode"} style={{
                 display:"flex", alignItems:"center", gap:5,
                 padding:"5px 10px",
@@ -430,7 +426,7 @@ export default function VerifyClient({ token, session }) {
             </div>
           </div>
 
-          {/* ── BODY ── */}
+          {/* BODY */}
           <div style={{ padding:"24px 20px 20px" }}>
             <UserStrip name={userName} userId={userId} C={C} dark={dark}/>
 
@@ -490,7 +486,7 @@ export default function VerifyClient({ token, session }) {
             {done && <ProceedBtn C={C} label={state==="verified"?"Continue to Bot":state==="conflict"?"Return to Bot":"Back to Bot"}/>}
           </div>
 
-          {/* ── FOOTER ── */}
+          {/* FOOTER */}
           <div style={{
             display:"flex", justifyContent:"space-between", alignItems:"center",
             padding:"9px 18px",
