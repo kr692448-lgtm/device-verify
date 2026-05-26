@@ -2,66 +2,40 @@
 
 import { useEffect, useState, useRef } from "react";
 
-// ── Lightweight device fingerprint (no external lib needed) ──
 async function collectFingerprint() {
   const components = {};
-
-  // Screen
   components.screen = `${screen.width}x${screen.height}x${screen.colorDepth}`;
   components.viewport = `${window.innerWidth}x${window.innerHeight}`;
-
-  // Timezone
   components.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   components.locale = navigator.language;
-
-  // Platform
   components.platform = navigator.platform;
   components.vendor = navigator.vendor;
   components.cores = navigator.hardwareConcurrency;
   components.memory = navigator.deviceMemory || "unknown";
   components.touchPoints = navigator.maxTouchPoints;
-
-  // Plugins (desktop)
   try {
-    components.plugins = Array.from(navigator.plugins)
-      .map((p) => p.name)
-      .slice(0, 5)
-      .join(",");
-  } catch {
-    components.plugins = "";
-  }
-
-  // Canvas fingerprint
+    components.plugins = Array.from(navigator.plugins).map(p => p.name).slice(0, 5).join(",");
+  } catch { components.plugins = ""; }
   try {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "top";
-    ctx.font = "14px 'Arial'";
+    ctx.font = "14px Arial";
     ctx.fillStyle = "#f60";
     ctx.fillRect(125, 1, 62, 20);
     ctx.fillStyle = "#069";
-    ctx.fillText("NxtZen🔐", 2, 15);
-    ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-    ctx.fillText("NxtZen🔐", 4, 17);
+    ctx.fillText("NxtZen", 2, 15);
+    ctx.fillStyle = "rgba(102,204,0,0.7)";
+    ctx.fillText("NxtZen", 4, 17);
     components.canvas = canvas.toDataURL().slice(-50);
-  } catch {
-    components.canvas = "";
-  }
-
-  // WebGL
+  } catch { components.canvas = ""; }
   try {
     const gl = document.createElement("canvas").getContext("webgl");
     if (gl) {
       const ext = gl.getExtension("WEBGL_debug_renderer_info");
-      components.webgl = ext
-        ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
-        : gl.getParameter(gl.RENDERER);
+      components.webgl = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
     }
-  } catch {
-    components.webgl = "";
-  }
-
-  // Audio fingerprint
+  } catch { components.webgl = ""; }
   try {
     const ac = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ac.createOscillator();
@@ -77,611 +51,255 @@ async function collectFingerprint() {
     osc.stop();
     await ac.close();
     components.audio = freqData.slice(0, 5).join(",");
-  } catch {
-    components.audio = "";
-  }
+  } catch { components.audio = ""; }
 
-  // Build hash
   const raw = Object.values(components).join("|");
   const encoder = new TextEncoder();
   const data = encoder.encode(raw);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const fingerprint = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-
+  const fingerprint = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
   return { fingerprint, components };
 }
 
-// ── Particle Background ──
-function ParticleCanvas() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let animId;
-    let particles = [];
-
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    for (let i = 0; i < 60; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 1.5 + 0.3,
-        dx: (Math.random() - 0.5) * 0.4,
-        dy: (Math.random() - 0.5) * 0.4,
-        alpha: Math.random() * 0.5 + 0.1,
-      });
-    }
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(139, 92, 246, ${p.alpha})`;
-        ctx.fill();
-        p.x += p.dx;
-        p.y += p.dy;
-        if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.dy *= -1;
-      });
-      // Draw connections
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 100) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(139, 92, 246, ${0.15 * (1 - dist / 100)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
+function ScannerRing({ state }) {
+  const ringColor =
+    state === "verified" ? "#00e5a0" :
+    state === "conflict" ? "#ff4444" :
+    state === "error"    ? "#ff8800" : "#6c63ff";
+  const glowColor =
+    state === "verified" ? "rgba(0,229,160,0.3)" :
+    state === "conflict" ? "rgba(255,68,68,0.3)" :
+    state === "error"    ? "rgba(255,136,0,0.3)" : "rgba(108,99,255,0.3)";
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 0,
-        pointerEvents: "none",
-      }}
-    />
+    <div style={{ position: "relative", width: 140, height: 140, margin: "0 auto" }}>
+      <div style={{ position:"absolute", inset:0, borderRadius:"50%", border:`2px solid ${ringColor}`, opacity:0.3, boxShadow:`0 0 20px ${glowColor}` }} />
+      <div style={{ position:"absolute", inset:16, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:0.5 }} />
+      <div style={{ position:"absolute", inset:32, borderRadius:"50%", border:`1px solid ${ringColor}`, opacity:0.7 }} />
+      <div style={{ position:"absolute", inset:48, borderRadius:"50%", background:ringColor, opacity:0.15, boxShadow:`0 0 30px ${ringColor}` }} />
+      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:8, height:8, borderRadius:"50%", background:ringColor, boxShadow:`0 0 12px ${ringColor}` }} />
+      {(state === "scanning" || state === "idle") && (
+        <div style={{ position:"absolute", inset:0, borderRadius:"50%", border:"2px solid transparent", borderTopColor:ringColor, borderRightColor:ringColor, animation:"spin 1.2s linear infinite", boxShadow:`0 0 10px ${glowColor}` }} />
+      )}
+      {state === "verified" && (
+        <svg style={{ position:"absolute", inset:0 }} width="140" height="140">
+          <line x1="35" y1="75" x2="60" y2="100" stroke="#00e5a0" strokeWidth="3" strokeLinecap="round" />
+          <line x1="60" y1="100" x2="105" y2="45" stroke="#00e5a0" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      )}
+      {state === "conflict" && (
+        <svg style={{ position:"absolute", inset:0 }} width="140" height="140">
+          <line x1="50" y1="50" x2="90" y2="90" stroke="#ff4444" strokeWidth="3" strokeLinecap="round" />
+          <line x1="90" y1="50" x2="50" y2="90" stroke="#ff4444" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      )}
+    </div>
   );
 }
 
-// ── Fingerprint SVG Icon ──
-function FingerprintIcon({ scanning, verified, failed }) {
-  const color = failed ? "#ef4444" : verified ? "#10b981" : scanning ? "#8b5cf6" : "#6b7280";
+function ProgressBar({ progress, color }) {
   return (
-    <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-      <defs>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <g filter={scanning || verified ? "url(#glow)" : "none"}>
-        <path
-          d="M40 8C22.3 8 8 22.3 8 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          style={{ transition: "stroke 0.5s" }}
-        />
-        <path
-          d="M40 8C57.7 8 72 22.3 72 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-        <path
-          d="M15 52C13.1 48.3 12 44.3 12 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <path
-          d="M40 20C28.95 20 20 28.95 20 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.8"
-        />
-        <path
-          d="M40 20C51.05 20 60 28.95 60 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.4"
-        />
-        <path
-          d="M26 54C23.5 50 22 45.2 22 40"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.7"
-        />
-        <path
-          d="M40 30C34.5 30 30 34.5 30 40C30 48 34 55 40 60"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.9"
-        />
-        <path
-          d="M40 30C45.5 30 50 34.5 50 40C50 46 48 51.5 44 56"
-          stroke={color}
-          strokeWidth="3"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-        <circle cx="40" cy="40" r="3" fill={color} />
-      </g>
-    </svg>
+    <div style={{ width:"100%", height:2, background:"rgba(255,255,255,0.05)", borderRadius:1, overflow:"hidden" }}>
+      <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg, transparent, ${color})`, transition:"width 0.3s ease", boxShadow:`0 0 8px ${color}` }} />
+    </div>
   );
 }
 
-// ── Main Component ──
 export default function VerifyClient({ token, session }) {
-  const [state, setState] = useState("idle"); // idle | scanning | success | error | expired | invalid
-  const [message, setMessage] = useState("");
-  const [fingerprint, setFingerprint] = useState("");
+  const [state, setState] = useState("idle");
   const [progress, setProgress] = useState(0);
-  const [dots, setDots] = useState("");
-  const [redirecting, setRedirecting] = useState(false);
+  const [statusText, setStatusText] = useState("INITIALIZING");
+  const [subText, setSubText] = useState("Preparing secure environment");
+  const [fingerprint, setFingerprint] = useState("");
+  const [logs, setLogs] = useState([]);
+  const hasRun = useRef(false);
 
-  // Dots animation
-  useEffect(() => {
-    if (state !== "scanning") return;
-    const id = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? "" : d + "."));
-    }, 400);
-    return () => clearInterval(id);
-  }, [state]);
+  const addLog = (text) => setLogs(prev => [...prev.slice(-3), text]);
+  const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-  // Check session validity on load
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+
     if (!session) {
-      setState("invalid");
-      return;
-    }
-    if (session.status === "verified") {
-      setState("success");
-      setMessage("Already verified! Redirecting to bot...");
-      setRedirecting(true);
-      setTimeout(() => {
-        window.location.href = `https://t.me/${session.bot_username}`;
-      }, 2000);
-      return;
+      setState("error"); setStatusText("INVALID SESSION");
+      setSubText("This verification link does not exist"); return;
     }
     if (session.status === "expired" || (session.expires_at && new Date() > new Date(session.expires_at))) {
-      setState("expired");
+      setState("error"); setStatusText("SESSION EXPIRED");
+      setSubText("Request a new verification link from the bot"); return;
+    }
+    if (session.status === "verified") {
+      setState("verified"); setStatusText("ALREADY VERIFIED");
+      setSubText("Device already authenticated"); setProgress(100);
+      setTimeout(() => { window.location.href = `https://t.me/${session.bot_username}`; }, 2000);
       return;
     }
-    if (session.status === "failed") {
-      setState("error");
-      setMessage("This session failed verification. Please get a new link from the bot.");
-      return;
-    }
-  }, [session]);
+    runScan();
+  }, []);
 
-  const handleVerify = async () => {
-    if (state === "scanning") return;
+  async function runScan() {
     setState("scanning");
-    setProgress(0);
+    setStatusText("SCANNING DEVICE"); setSubText("Collecting device parameters");
+    addLog("Hardware profiling started"); setProgress(10); await delay(400);
+    addLog("Canvas signature detected"); setProgress(25); await delay(300);
+    addLog("WebGL renderer captured"); setProgress(40); await delay(300);
+    addLog("Audio context sampled"); setProgress(55); await delay(300);
+    setStatusText("GENERATING HASH"); setSubText("Computing SHA-256 fingerprint");
+    addLog("Building cryptographic hash");
 
-    // Animate progress
-    let p = 0;
-    const interval = setInterval(() => {
-      p += Math.random() * 12;
-      if (p > 90) p = 90;
-      setProgress(Math.floor(p));
-    }, 200);
+    let fp, comp;
+    try {
+      const result = await collectFingerprint();
+      fp = result.fingerprint; comp = result.components;
+      setFingerprint(fp);
+    } catch {
+      setState("error"); setStatusText("SCAN FAILED");
+      setSubText("Unable to read device parameters"); return;
+    }
+
+    setProgress(75); addLog("Fingerprint: " + fp.slice(0,12).toUpperCase() + "..."); await delay(300);
+    setStatusText("VERIFYING"); setSubText("Cross-checking with secure database");
+    setProgress(88); await delay(400);
 
     try {
-      const { fingerprint: fp, components } = await collectFingerprint();
-      setFingerprint(fp);
-
-      clearInterval(interval);
-      setProgress(95);
-
       const res = await fetch("/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, fingerprint: fp, components }),
+        body: JSON.stringify({ token, fingerprint: fp, components: comp }),
       });
-
       const data = await res.json();
       setProgress(100);
 
       if (!res.ok) {
-        setState("error");
         if (data.code === "DEVICE_CONFLICT") {
-          setMessage("🚫 This device is already linked to another account. Multi-account usage is not permitted.");
+          setState("conflict"); setStatusText("DEVICE CONFLICT");
+          setSubText("This device is registered to another account");
+          addLog("Conflict: Multiple accounts detected");
         } else {
-          setMessage(data.error || "Verification failed. Please try again.");
+          setState("error"); setStatusText("VERIFICATION FAILED");
+          setSubText(data.error || "An error occurred");
         }
         return;
       }
 
-      setState("success");
-      setMessage("✅ Device verified successfully!");
-      setRedirecting(true);
-
+      setState("verified"); setStatusText("ACCESS GRANTED");
+      setSubText("Device successfully authenticated");
+      addLog("Verification complete");
       setTimeout(() => {
-        const botUser = session?.bot_username || data.bot_username;
-        if (botUser) {
-          window.location.href = `https://t.me/${botUser}`;
-        }
+        window.location.href = `https://t.me/${session?.bot_username || data.bot_username}`;
       }, 2500);
-    } catch (err) {
-      clearInterval(interval);
-      setState("error");
-      setMessage("Network error. Please check your connection and try again.");
+    } catch {
+      setState("error"); setStatusText("NETWORK ERROR");
+      setSubText("Connection to server failed");
     }
-  };
+  }
+
+  const accentColor =
+    state === "verified" ? "#00e5a0" :
+    state === "conflict" ? "#ff4444" :
+    state === "error"    ? "#ff8800" : "#6c63ff";
 
   const shortFp = fingerprint
-    ? fingerprint.slice(0, 8).toUpperCase() + "..." + fingerprint.slice(-8).toUpperCase()
-    : "";
-
-  // ── Render States ──
-  const renderContent = () => {
-    if (state === "invalid") {
-      return (
-        <StateCard
-          icon="❌"
-          title="INVALID LINK"
-          subtitle="This verification link does not exist or has already been used."
-          color="#ef4444"
-        />
-      );
-    }
-
-    if (state === "expired") {
-      return (
-        <StateCard
-          icon="⏰"
-          title="LINK EXPIRED"
-          subtitle="This verification link has expired (10 min limit). Please send /start in the bot to get a new link."
-          color="#f59e0b"
-        />
-      );
-    }
-
-    if (state === "error") {
-      return (
-        <StateCard
-          icon="🚫"
-          title="VERIFICATION FAILED"
-          subtitle={message}
-          color="#ef4444"
-        />
-      );
-    }
-
-    if (state === "success") {
-      return (
-        <div style={{ textAlign: "center" }}>
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 64, marginBottom: 8 }}>✅</div>
-            <div style={{ color: "#10b981", fontSize: 22, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>
-              VERIFIED
-            </div>
-            {fingerprint && (
-              <div style={{
-                background: "rgba(16,185,129,0.1)",
-                border: "1px solid rgba(16,185,129,0.3)",
-                borderRadius: 8,
-                padding: "8px 16px",
-                display: "inline-block",
-                marginBottom: 12,
-              }}>
-                <span style={{ color: "#6b7280", fontSize: 11, display: "block", marginBottom: 2 }}>DEVICE ID</span>
-                <span style={{ color: "#10b981", fontSize: 12, fontFamily: "monospace" }}>{shortFp}</span>
-              </div>
-            )}
-            {redirecting && (
-              <div style={{ color: "#6b7280", fontSize: 13, marginTop: 8 }}>
-                Redirecting to Telegram bot<span style={{ color: "#8b5cf6" }}>{dots || "..."}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // Default: idle or scanning
-    return (
-      <div style={{ textAlign: "center" }}>
-        {/* Fingerprint icon */}
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          marginBottom: 20,
-          animation: state === "scanning" ? "pulse 1.5s infinite" : "none",
-        }}>
-          <FingerprintIcon
-            scanning={state === "scanning"}
-            verified={state === "success"}
-            failed={state === "error"}
-          />
-        </div>
-
-        {/* User ID badge */}
-        {session?.user_id && (
-          <div style={{
-            background: "rgba(139,92,246,0.1)",
-            border: "1px solid rgba(139,92,246,0.3)",
-            borderRadius: 8,
-            padding: "10px 20px",
-            marginBottom: 20,
-            display: "inline-block",
-          }}>
-            <div style={{ color: "#6b7280", fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>TELEGRAM USER ID</div>
-            <div style={{ color: "#c4b5fd", fontSize: 18, fontWeight: 700, fontFamily: "monospace" }}>
-              #{session.user_id}
-            </div>
-          </div>
-        )}
-
-        {/* Status text */}
-        <div style={{ marginBottom: 20 }}>
-          {state === "idle" && (
-            <p style={{ color: "#9ca3af", fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-              Tap the button below to scan and verify your device.<br />
-              This ensures one account per device.
-            </p>
-          )}
-          {state === "scanning" && (
-            <p style={{ color: "#8b5cf6", fontSize: 13, margin: 0 }}>
-              Scanning device fingerprint{dots}
-            </p>
-          )}
-        </div>
-
-        {/* Progress bar */}
-        {state === "scanning" && (
-          <div style={{
-            height: 4,
-            background: "rgba(139,92,246,0.15)",
-            borderRadius: 2,
-            overflow: "hidden",
-            marginBottom: 20,
-          }}>
-            <div style={{
-              height: "100%",
-              width: `${progress}%`,
-              background: "linear-gradient(90deg, #7c3aed, #8b5cf6, #a78bfa)",
-              borderRadius: 2,
-              transition: "width 0.2s ease",
-              boxShadow: "0 0 8px rgba(139,92,246,0.6)",
-            }} />
-          </div>
-        )}
-
-        {/* Verify button */}
-        {state === "idle" && (
-          <button
-            onClick={handleVerify}
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-              border: "none",
-              borderRadius: 12,
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: 2,
-              cursor: "pointer",
-              boxShadow: "0 4px 24px rgba(124,58,237,0.4)",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => { e.target.style.transform = "translateY(-2px)"; e.target.style.boxShadow = "0 8px 32px rgba(124,58,237,0.6)"; }}
-            onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.boxShadow = "0 4px 24px rgba(124,58,237,0.4)"; }}
-          >
-            🔐 VERIFY DEVICE
-          </button>
-        )}
-
-        {state === "scanning" && (
-          <button
-            disabled
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              background: "rgba(139,92,246,0.2)",
-              border: "1px solid rgba(139,92,246,0.3)",
-              borderRadius: 12,
-              color: "#8b5cf6",
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: 2,
-              cursor: "not-allowed",
-            }}
-          >
-            ⚙️ SCANNING{dots}
-          </button>
-        )}
-      </div>
-    );
-  };
+    ? fingerprint.slice(0,8).toUpperCase() + "..." + fingerprint.slice(-8).toUpperCase()
+    : null;
 
   return (
     <>
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
-        @keyframes fadeIn { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
-        @keyframes scanLine {
-          0% { top: 0%; opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%;background:#080810}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        @keyframes gridMove{from{transform:translateY(0)}to{transform:translateY(40px)}}
       `}</style>
 
-      <ParticleCanvas />
+      <div style={{ position:"fixed", inset:0, zIndex:0, backgroundImage:`linear-gradient(rgba(108,99,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(108,99,255,0.04) 1px,transparent 1px)`, backgroundSize:"40px 40px", animation:"gridMove 4s linear infinite" }} />
+      <div style={{ position:"fixed", inset:0, zIndex:0, background:`radial-gradient(ellipse 60% 50% at 50% 50%,rgba(108,99,255,0.08) 0%,transparent 70%)` }} />
 
-      {/* Main container */}
-      <div style={{
-        position: "relative",
-        zIndex: 1,
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px 16px",
-      }}>
+      <div style={{ position:"relative", zIndex:1, minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px", fontFamily:"'SF Mono','Fira Code','Consolas',monospace" }}>
+        <div style={{ width:"100%", maxWidth:360, background:"rgba(10,10,20,0.92)", border:`1px solid ${accentColor}22`, borderRadius:4, overflow:"hidden", boxShadow:`0 0 0 1px rgba(255,255,255,0.03),0 40px 80px rgba(0,0,0,0.6),0 0 60px ${accentColor}0d`, animation:"fadeUp 0.4s ease", transition:"box-shadow 0.5s,border-color 0.5s" }}>
 
-        {/* Card */}
-        <div style={{
-          width: "100%",
-          maxWidth: 380,
-          background: "rgba(15, 10, 30, 0.85)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(139,92,246,0.2)",
-          borderRadius: 20,
-          padding: "32px 28px",
-          boxShadow: "0 0 60px rgba(139,92,246,0.08), 0 20px 60px rgba(0,0,0,0.5)",
-          animation: "fadeIn 0.5s ease",
-        }}>
+          {/* Top bar */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"rgba(255,255,255,0.02)" }}>
+            <div style={{ display:"flex", gap:6 }}>
+              {["#ff5f57","#ffbd2e","#28ca41"].map((c,i) => (
+                <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:c, opacity:0.6 }} />
+              ))}
+            </div>
+            <span style={{ color:"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:2 }}>NXTZEN · SECURITY CORE v2</span>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:accentColor, boxShadow:`0 0 6px ${accentColor}`, animation:"pulse 2s infinite", transition:"background 0.5s,box-shadow 0.5s" }} />
+          </div>
 
-          {/* Header */}
-          <div style={{ textAlign: "center", marginBottom: 28 }}>
-            <div style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              background: "rgba(139,92,246,0.1)",
-              border: "1px solid rgba(139,92,246,0.25)",
-              borderRadius: 20,
-              padding: "4px 14px",
-              marginBottom: 16,
-            }}>
-              <div style={{
-                width: 6, height: 6,
-                borderRadius: "50%",
-                background: "#8b5cf6",
-                boxShadow: "0 0 6px #8b5cf6",
-                animation: "pulse 2s infinite",
-              }} />
-              <span style={{ color: "#8b5cf6", fontSize: 10, fontWeight: 700, letterSpacing: 2 }}>
-                NXTZEN SECURITY
-              </span>
+          {/* Body */}
+          <div style={{ padding:"32px 28px 28px" }}>
+            <div style={{ marginBottom:28 }}><ScannerRing state={state} /></div>
+
+            <div style={{ textAlign:"center", marginBottom:20 }}>
+              <div style={{ color:accentColor, fontSize:13, fontWeight:700, letterSpacing:3, marginBottom:6, transition:"color 0.5s" }}>
+                {statusText}
+                {state === "scanning" && <span style={{ animation:"blink 1s infinite" }}>_</span>}
+              </div>
+              <div style={{ color:"rgba(255,255,255,0.3)", fontSize:10, letterSpacing:1, lineHeight:1.5 }}>{subText}</div>
             </div>
 
-            <h1 style={{
-              color: "#f3f4f6",
-              fontSize: 20,
-              fontWeight: 800,
-              letterSpacing: 3,
-              marginBottom: 4,
-              textTransform: "uppercase",
-            }}>
-              Device Verification
-            </h1>
+            <div style={{ marginBottom:20 }}>
+              <ProgressBar progress={progress} color={accentColor} />
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
+                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:9, letterSpacing:1 }}>PROGRESS</span>
+                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.7 }}>{progress}%</span>
+              </div>
+            </div>
 
-            <div style={{
-              height: 1,
-              background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.5), transparent)",
-              margin: "12px 0",
-            }} />
+            <div style={{ background:"rgba(0,0,0,0.4)", border:"1px solid rgba(255,255,255,0.04)", borderRadius:2, padding:"10px 12px", minHeight:72, marginBottom:20 }}>
+              {logs.length === 0 ? (
+                <div style={{ color:"rgba(255,255,255,0.1)", fontSize:9, letterSpacing:1 }}>&gt; AWAITING SCAN...</div>
+              ) : logs.map((log,i) => (
+                <div key={i} style={{ color:i===logs.length-1?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.2)", fontSize:9, letterSpacing:0.5, lineHeight:1.8 }}>
+                  <span style={{ color:accentColor, opacity:0.6 }}>&gt; </span>{log}
+                </div>
+              ))}
+            </div>
+
+            {shortFp && (
+              <div style={{ background:`${accentColor}0a`, border:`1px solid ${accentColor}22`, borderRadius:2, padding:"8px 12px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ color:"rgba(255,255,255,0.2)", fontSize:8, letterSpacing:2 }}>DEVICE ID</span>
+                <span style={{ color:accentColor, fontSize:9, letterSpacing:1, opacity:0.8 }}>{shortFp}</span>
+              </div>
+            )}
+
+            {state === "conflict" && (
+              <div style={{ background:"rgba(255,68,68,0.06)", border:"1px solid rgba(255,68,68,0.2)", borderRadius:2, padding:"12px 14px", marginBottom:16 }}>
+                <div style={{ color:"#ff4444", fontSize:10, letterSpacing:2, marginBottom:6, fontWeight:700 }}>CONFLICT DETECTED</div>
+                <div style={{ color:"rgba(255,255,255,0.35)", fontSize:9, lineHeight:1.7 }}>
+                  This device fingerprint is already bound to a different account. Each physical device may only be associated with one account.
+                </div>
+                <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,68,68,0.1)", display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:1 }}>REASON</span>
+                  <span style={{ color:"#ff4444", fontSize:8, letterSpacing:1, opacity:0.7 }}>DEVICE_ALREADY_REGISTERED</span>
+                </div>
+              </div>
+            )}
+
+            {session?.user_id && (
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+                <span style={{ color:"rgba(255,255,255,0.15)", fontSize:8, letterSpacing:2 }}>UID</span>
+                <span style={{ color:"rgba(255,255,255,0.25)", fontSize:9 }}>#{session.user_id}</span>
+              </div>
+            )}
           </div>
 
-          {/* Content */}
-          {renderContent()}
-
-          {/* Footer */}
-          <div style={{
-            marginTop: 24,
-            paddingTop: 16,
-            borderTop: "1px solid rgba(255,255,255,0.05)",
-            textAlign: "center",
-          }}>
-            <p style={{ color: "#374151", fontSize: 10, letterSpacing: 1 }}>
-              🔒 ENCRYPTED · SECURE · PRIVATE
-            </p>
-            <p style={{ color: "#1f2937", fontSize: 9, marginTop: 4 }}>
-              Powered by NxtZen Engine
-            </p>
+          {/* Bottom bar */}
+          <div style={{ padding:"8px 16px", borderTop:"1px solid rgba(255,255,255,0.03)", background:"rgba(0,0,0,0.2)", display:"flex", justifyContent:"space-between" }}>
+            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>SHA-256 · AES-256 · TLS 1.3</span>
+            <span style={{ color:"rgba(255,255,255,0.08)", fontSize:8, letterSpacing:1 }}>NXTZEN ENGINE</span>
           </div>
 
-        </div>
-
-        {/* Security badges */}
-        <div style={{
-          display: "flex",
-          gap: 12,
-          marginTop: 20,
-          opacity: 0.5,
-        }}>
-          {["🛡️ SECURE", "🔐 ENCRYPTED", "👁️ PRIVATE"].map((b) => (
-            <span key={b} style={{
-              color: "#4b5563",
-              fontSize: 9,
-              letterSpacing: 1,
-              fontWeight: 600,
-            }}>{b}</span>
-          ))}
         </div>
       </div>
     </>
-  );
-}
-
-// ── Reusable state card ──
-function StateCard({ icon, title, subtitle, color }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 52, marginBottom: 12 }}>{icon}</div>
-      <div style={{
-        color,
-        fontSize: 16,
-        fontWeight: 700,
-        letterSpacing: 2,
-        marginBottom: 12,
-      }}>
-        {title}
-      </div>
-      <p style={{
-        color: "#6b7280",
-        fontSize: 13,
-        lineHeight: 1.6,
-      }}>
-        {subtitle}
-      </p>
-    </div>
   );
 }
