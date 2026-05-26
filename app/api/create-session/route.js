@@ -5,7 +5,14 @@ import crypto from "crypto";
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { user_id, bot_username, bot_token, webhook_url, webhook_conflict_url } = body;
+    const {
+      user_id,
+      bot_username,
+      bot_token,
+      webhook_url,
+      webhook_conflict_url,
+      first_name,
+    } = body;
 
     if (!user_id) return NextResponse.json({ error: "user_id is required" }, { status: 400 });
     if (!bot_username) return NextResponse.json({ error: "bot_username is required" }, { status: 400 });
@@ -22,6 +29,7 @@ export async function POST(request) {
     const session = {
       token,
       user_id: String(user_id),
+      first_name: first_name ? String(first_name) : null,
       bot_username: String(bot_username),
       bot_token: bot_token ? String(bot_token) : null,
       webhook_url: webhook_url ? String(webhook_url) : null,
