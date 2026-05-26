@@ -52,6 +52,16 @@ function getStateColor(state) {
   return                        { main:"#0ea5e9", grad:"#6366f1", light:"#f0f9ff", border:"#bae6fd", text:"#0369a1", badge:"#0284c7" };
 }
 
+function closeTelegramWebApp() {
+  try {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.close();
+      return;
+    }
+  } catch {}
+  try { window.close(); } catch {}
+}
+
 function SunIcon({ size=13, color }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -236,24 +246,30 @@ function LogPanel({ logs, C, dark }) {
   );
 }
 
-function ProceedBtn({ C, label }) {
+function ProceedBtn({ C, label, onClick }) {
   const [hov, setHov] = useState(false);
-  function go(){ try{ window.Telegram?.WebApp?.close?window.Telegram.WebApp.close():window.close(); }catch{ window.close(); } }
   return (
-    <button onClick={go} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
-      width:"100%", padding:"15px 0",
-      display:"flex", alignItems:"center", justifyContent:"center", gap:9,
-      background:`linear-gradient(135deg, ${C.main}, ${C.grad})`,
-      border:"none", borderRadius:12, color:"#fff",
-      cursor:"pointer", outline:"none",
-      fontSize:14, letterSpacing:1.5, fontWeight:700,
-      fontFamily:"'DM Sans','Segoe UI',sans-serif",
-      transition:"all 0.22s ease",
-      boxShadow: hov ? `0 12px 36px ${C.main}60, 0 4px 12px ${C.grad}40` : `0 6px 24px ${C.main}40`,
-      transform: hov ? "translateY(-1px)" : "translateY(0)",
-      animation:"fadeUp 0.4s ease both 0.1s",
-      opacity: hov ? 0.92 : 1,
-    }}>
+    <button
+      onClick={onClick}
+      onMouseEnter={()=>setHov(true)}
+      onMouseLeave={()=>setHov(false)}
+      style={{
+        width:"100%", padding:"15px 0",
+        display:"flex", alignItems:"center", justifyContent:"center", gap:9,
+        background:`linear-gradient(135deg, ${C.main}, ${C.grad})`,
+        border:"none", borderRadius:12, color:"#fff",
+        cursor:"pointer", outline:"none",
+        fontSize:14, letterSpacing:1.5, fontWeight:700,
+        fontFamily:"'DM Sans','Segoe UI',sans-serif",
+        transition:"all 0.22s ease",
+        boxShadow: hov ? `0 12px 36px ${C.main}60, 0 4px 12px ${C.grad}40` : `0 6px 24px ${C.main}40`,
+        transform: hov ? "translateY(-1px)" : "translateY(0)",
+        animation:"fadeUp 0.4s ease both 0.1s",
+        opacity: hov ? 0.92 : 1,
+        WebkitTapHighlightColor: "transparent",
+        userSelect: "none",
+      }}
+    >
       {label}
       <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
         <path d="M2 6h8M6 2l4 4-4 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -275,7 +291,6 @@ export default function VerifyClient({ token, session }) {
   const C    = getStateColor(state);
   const done = ["verified","conflict","error"].includes(state);
 
-  // session se name aur id lo
   const userName = session?.first_name || null;
   const userId   = session?.user_id    || null;
 
@@ -292,20 +307,18 @@ export default function VerifyClient({ token, session }) {
       setSubText("This link does not exist or has been removed.");
       return;
     }
-    if(
-      session.status === "expired" ||
-      (session.expires_at && new Date() > new Date(session.expires_at))
-    ){
+    if(session.status==="expired"||(session.expires_at&&new Date()>new Date(session.expires_at))){
       setState("error"); setStatusText("Session Expired");
       setSubText("Request a new verification link from the bot.");
       return;
     }
-    if(session.status === "verified"){
+    if(session.status==="verified"){
       setState("verified"); setStatusText("Already Verified");
       setSubText("This device is already authenticated."); setPct(100);
+      // auto close after 2s
+      setTimeout(()=>closeTelegramWebApp(), 2000);
       return;
     }
-
     runScan();
   }, []);
 
@@ -330,37 +343,41 @@ export default function VerifyClient({ token, session }) {
       return;
     }
 
-    setPct(68); addLog("ID: " + fp.slice(0,12).toUpperCase() + "···"); await wait(300);
+    setPct(68); addLog("ID: "+fp.slice(0,12).toUpperCase()+"···"); await wait(300);
     setStatusText("Authenticating"); setSubText("Cross-referencing secure registry");
     setPct(84); await wait(400);
 
     try{
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, fingerprint: fp, components: comp }),
+      const res = await fetch("/api/verify",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ token, fingerprint:fp, components:comp }),
       });
       const data = await res.json();
       setPct(100);
 
       if(!res.ok){
-        if(data.code === "DEVICE_CONFLICT"){
+        if(data.code==="DEVICE_CONFLICT"){
           setState("conflict");
           setStatusText("Access Denied");
           setSubText("This device is bound to another account.");
           addLog("Conflict: Duplicate identity detected");
+          // auto close after 2s for conflict too
+          setTimeout(()=>closeTelegramWebApp(), 2000);
         } else {
           setState("error");
           setStatusText("Verification Failed");
-          setSubText(data.error || "An error occurred.");
+          setSubText(data.error||"An error occurred.");
         }
         return;
       }
 
       setState("verified");
       setStatusText("Access Granted");
-      setSubText("Identity confirmed — you may now proceed.");
+      setSubText("Identity confirmed — closing in 2s");
       addLog("Verification complete");
+      // auto close after 2s on success
+      setTimeout(()=>closeTelegramWebApp(), 2000);
     } catch {
       setState("error");
       setStatusText("Network Error");
@@ -369,7 +386,7 @@ export default function VerifyClient({ token, session }) {
   }
 
   const shortFp = fingerprint
-    ? fingerprint.slice(0,8).toUpperCase() + "···" + fingerprint.slice(-8).toUpperCase()
+    ? fingerprint.slice(0,8).toUpperCase()+"···"+fingerprint.slice(-8).toUpperCase()
     : null;
 
   const pageBg = dark
@@ -382,7 +399,7 @@ export default function VerifyClient({ token, session }) {
     : `0 12px 60px rgba(0,0,0,0.10), 0 0 0 1px ${C.border}, inset 0 1px 0 #fff`;
   const hdrBg   = dark ? `linear-gradient(90deg, ${C.main}0e, ${C.grad}08)` : `linear-gradient(90deg, ${C.light}, #fff)`;
   const hdrBdr  = dark ? "rgba(255,255,255,0.06)" : C.border;
-  const ftrBg   = dark ? "rgba(0,0,0,0.3)"        : C.light + "aa";
+  const ftrBg   = dark ? "rgba(0,0,0,0.3)"        : C.light+"aa";
   const labelClr = dark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.38)";
   const titleClr = dark ? "#eef2ff"                : "#0f1629";
   const subClr   = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)";
@@ -391,7 +408,7 @@ export default function VerifyClient({ token, session }) {
   const tglClr   = dark ? "rgba(255,255,255,0.55)" : C.text;
 
   const badgeLabel = done
-    ? (state==="verified" ? "VERIFIED" : state==="conflict" ? "BLOCKED" : "ERROR")
+    ? (state==="verified"?"VERIFIED":state==="conflict"?"BLOCKED":"ERROR")
     : "SCANNING";
 
   return (
@@ -404,6 +421,8 @@ export default function VerifyClient({ token, session }) {
         @keyframes pulse   {0%,100%{opacity:0.55;}50%{opacity:1;}}
         @keyframes blink   {0%,100%{opacity:1;}50%{opacity:0;}}
         @keyframes subtleIn{from{opacity:0;}to{opacity:1;}}
+        a { -webkit-tap-highlight-color: transparent !important; }
+        button { -webkit-tap-highlight-color: transparent !important; }
       `}</style>
 
       <div style={{ position:"fixed", inset:0, zIndex:0, background:pageBg, transition:"background 0.4s" }}/>
@@ -461,7 +480,7 @@ export default function VerifyClient({ token, session }) {
                 fontFamily:"'IBM Plex Mono',monospace",
               }}>{badgeLabel}</span>
 
-              <button onClick={()=>setDark(d=>!d)} title={dark?"Light mode":"Dark mode"} style={{
+              <button onClick={()=>setDark(d=>!d)} style={{
                 display:"flex", alignItems:"center", gap:5,
                 padding:"5px 10px",
                 background:tglBg, border:`1px solid ${tglBdr}`, borderRadius:7,
@@ -469,6 +488,7 @@ export default function VerifyClient({ token, session }) {
                 fontSize:9, letterSpacing:1.2, fontWeight:600,
                 fontFamily:"'DM Sans','Segoe UI',sans-serif",
                 transition:"all 0.25s", backdropFilter:"blur(8px)",
+                WebkitTapHighlightColor:"transparent",
               }}>
                 {dark ? <SunIcon color={tglClr}/> : <MoonIcon color={tglClr}/>}
                 {dark ? "Light" : "Dark"}
@@ -533,7 +553,14 @@ export default function VerifyClient({ token, session }) {
               </div>
             )}
 
-            {done && <ProceedBtn C={C} label={state==="verified"?"Continue to Bot":state==="conflict"?"Return to Bot":"Back to Bot"}/>}
+            {/* Manual close button — only shows if auto-close hasn't worked */}
+            {done && (
+              <ProceedBtn
+                C={C}
+                label={state==="verified"?"Close":"Close"}
+                onClick={closeTelegramWebApp}
+              />
+            )}
           </div>
 
           {/* FOOTER */}
