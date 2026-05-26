@@ -61,6 +61,16 @@ export async function POST(request) {
           },
         }
       );
+
+      // ── Webhook hit karo conflict pe bhi ──
+      if (session.webhook_url) {
+        try {
+          await fetch(session.webhook_url, { method: "GET" });
+        } catch (err) {
+          console.error("Conflict webhook failed:", err);
+        }
+      }
+
       return NextResponse.json(
         {
           error: "This device is already registered with a different account. Multi-account usage is not allowed.",
@@ -100,16 +110,14 @@ export async function POST(request) {
       }
     );
 
-    // TBC Webhook
+    // ── Success webhook ──
     if (session.webhook_url) {
       try {
         await fetch(session.webhook_url, { method: "GET" });
       } catch (err) {
         console.error("Webhook notify failed:", err);
       }
-    }
-    // Fallback: direct bot message
-    else if (session.bot_token) {
+    } else if (session.bot_token) {
       try {
         await fetch(`https://api.telegram.org/bot${session.bot_token}/sendMessage`, {
           method: "POST",
@@ -119,8 +127,8 @@ export async function POST(request) {
             text:
               "✅ *DEVICE VERIFIED!*\n" +
               "━━━━━━━━━━━━━━━━━━━━\n\n" +
-              "🎉 Tera device successfully verify ho gaya!\n" +
-              "Ab tu bot use kar sakta hai.\n\n" +
+              "🎉 Your device has been successfully verified!\n" +
+              "You can now use the bot.\n\n" +
               "━━━━━━━━━━━━━━━━━━━━",
             parse_mode: "Markdown",
           }),
