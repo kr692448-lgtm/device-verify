@@ -81,9 +81,7 @@ export async function POST(request) {
           user_agent: userAgent,
           components: components || {},
         },
-        $setOnInsert: {
-          first_seen: new Date(),
-        },
+        $setOnInsert: { first_seen: new Date() },
       },
       { upsert: true }
     );
@@ -97,31 +95,38 @@ export async function POST(request) {
           ip_address: ip,
           user_agent: userAgent,
           verified_at: new Date(),
+          expires_at: new Date(),
         },
       }
     );
 
-    if (session.bot_token) {
+    // TBC Webhook
+    if (session.webhook_url) {
       try {
-        await fetch(
-          `https://api.telegram.org/bot${session.bot_token}/sendMessage`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: session.user_id,
-              text:
-                "✅ *DEVICE VERIFIED!*\n" +
-                "━━━━━━━━━━━━━━━━━━━━\n\n" +
-                "🎉 Your device has been successfully verified!\n" +
-                "You can now use the bot.\n\n" +
-                "━━━━━━━━━━━━━━━━━━━━",
-              parse_mode: "Markdown",
-            }),
-          }
-        );
-      } catch (notifyErr) {
-        console.error("Bot notify failed:", notifyErr);
+        await fetch(session.webhook_url, { method: "GET" });
+      } catch (err) {
+        console.error("Webhook notify failed:", err);
+      }
+    }
+    // Fallback: direct bot message
+    else if (session.bot_token) {
+      try {
+        await fetch(`https://api.telegram.org/bot${session.bot_token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: session.user_id,
+            text:
+              "✅ *DEVICE VERIFIED!*\n" +
+              "━━━━━━━━━━━━━━━━━━━━\n\n" +
+              "🎉 Tera device successfully verify ho gaya!\n" +
+              "Ab tu bot use kar sakta hai.\n\n" +
+              "━━━━━━━━━━━━━━━━━━━━",
+            parse_mode: "Markdown",
+          }),
+        });
+      } catch (err) {
+        console.error("Bot notify failed:", err);
       }
     }
 
